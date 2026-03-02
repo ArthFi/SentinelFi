@@ -77,6 +77,17 @@ contract LoanFacility is AccessControl, Pausable {
         _processReport(report);
     }
 
+    function emergencyPause() external onlyRole(ADMIN_ROLE) { _pause(); }
+    function emergencyUnpause() external onlyRole(ADMIN_ROLE) { _unpause(); }
+
+    function getLoanHealth(bytes32 loanId) external view returns (LoanTerms memory) {
+        return loans[loanId];
+    }
+
+    function getLoanIds() external view returns (bytes32[] memory) {
+        return loanIds;
+    }
+
 
     function _processReport(bytes calldata report) internal {
         (bytes32 loanId, uint256 currentLeverage, uint256 currentDscr) = abi.decode(report, (bytes32, uint256, uint256));
