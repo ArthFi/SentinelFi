@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SentinelFi - Covenant Monitor</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0a0a; --card-bg: #111111; --border: #333333;
+      --text: #ffffff; --text-dim: #666666; --text-muted: #444444;
+      --accent: #ff6600; --green: #00cc44; --red: #cc0000;
+      --yellow: #ccaa00; --blue: #3388ff;
+      --font: "IBM Plex Mono", "Fira Code", "Courier New", monospace;
+    }
+    body {
+      font-family: var(--font); background: var(--bg); color: var(--text);
+      min-height: 100vh; overflow-x: hidden;
+    }
+    body::after {
+      content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 16px 20px; }
+    .header {
+      border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 16px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .header-title {
+      font-size: 14px; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--accent);
+    }
+    .header-badge {
+      font-size: 9px; background: var(--accent); color: #000;
+      padding: 2px 6px; font-weight: 700; letter-spacing: 0.5px;
+    }
+    .section-label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 2px;
+      color: var(--text-dim); margin-bottom: 8px; margin-top: 20px;
+    }
+    .metric-card {
+      background: var(--card-bg); border: 1px solid var(--border); padding: 16px 20px;
+    }
+    .metric-card .metric-label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 2px; color: var(--text-dim);
+    }
+    .metric-card .metric-value { font-size: 32px; font-weight: 700; }
+    .footer {
+      text-align: center; padding: 16px 0; font-size: 10px;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="header-title">SENTINELFI</span>
+        <span class="header-badge">COVENANT MONITOR</span>
+      </div>
+      <span style="font-size:12px;color:var(--text-dim);text-transform:uppercase">LOCAL ANVIL</span>
+    </div>
+
+    <div class="section-label">COVENANT METRICS</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div class="metric-card">
+        <div class="metric-label">DEBT SERVICE COVERAGE RATIO</div>
+        <div class="metric-value" id="dscr-value">--</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">LEVERAGE RATIO</div>
+        <div class="metric-value" id="leverage-value">--</div>
+      </div>
+    </div>
+
+    <div class="footer">SentinelFi - Chainlink Convergence Hackathon 2026</div>
+  </div>
+
+  <script>
+  const CONTRACT = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+  const RPC_URL = "http://127.0.0.1:8545";
+  const ABI = [
+    "function getLoanHealth(bytes32 loanId) view returns (tuple(uint256 maxLeverageScaled, uint256 minDscrScaled, uint256 lastLeverage, uint256 lastDscr, uint256 lastUpdated, bool isFrozen))",
+    "function getLoanIds() view returns (bytes32[])",
+    "function getAllLoans() view returns (bytes32[] ids, tuple(uint256 maxLeverageScaled, uint256 minDscrScaled, uint256 lastLeverage, uint256 lastDscr, uint256 lastUpdated, bool isFrozen)[] terms)",
+  ];
+
+  const provider = new ethers.JsonRpcProvider(RPC_URL);
+  const contract = new ethers.Contract(CONTRACT, ABI, provider);
+
+  async function poll() {
+    try {
+      const result = await contract.getAllLoans();
+      const terms = result[1];
+      if (terms.length > 0) {
+        const t = terms[0];
+        const dscr = Number(t[3]) / 10000;
+        const lev = Number(t[2]) / 10000;
+        document.getElementById("dscr-value").textContent = dscr > 0 ? dscr.toFixed(2) + "x" : "--";
+        document.getElementById("leverage-value").textContent = lev > 0 ? lev.toFixed(2) + "x" : "--";
+      }
+    } catch (e) {
+      console.error("Poll failed:", e.message);
+    }
+  }
+  poll();
+  setInterval(poll, 5000);
+  </script>
+</body>
+</html>
