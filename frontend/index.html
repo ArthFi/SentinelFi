@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SentinelFi - Covenant Monitor</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+  <style>
+    
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0a0a0a;
+      --card-bg:    #111111;
+      --border:     #333333;
+      --text:       #ffffff;
+      --text-dim:   #666666;
+      --text-muted: #444444;
+      --accent:     #ff6600;
+      --green:      #00cc44;
+      --red:        #cc0000;
+      --yellow:     #ccaa00;
+      --blue:       #3388ff;
+      --font:       "IBM Plex Mono", "Fira Code", "Courier New", monospace;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 2px,
+        rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px
+      );
+    }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 16px 20px; }
+
+    
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-title {
+      font-size: 14px; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--accent);
+    }
+    .header-badge {
+      font-size: 9px; background: var(--accent); color: #000;
+      padding: 2px 6px; font-weight: 700; letter-spacing: 0.5px;
+    }
+    .header-meta {
+      font-size: 12px; color: var(--text-dim); text-transform: uppercase;
+    }
+    .cursor {
+      display: inline-block; animation: blink 1s step-end infinite; color: var(--accent);
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    
+    .section-label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 2px;
+      color: var(--text-dim); margin-bottom: 8px; margin-top: 20px;
+    }
+
+    
+    .portfolio-table {
+      width: 100%; border-collapse: collapse;
+      background: var(--card-bg); border: 1px solid var(--border);
+      margin-bottom: 16px; font-size: 12px;
+    }
+    .portfolio-table th {
+      text-align: left; padding: 8px 12px; font-size: 10px;
+      text-transform: uppercase; letter-spacing: 1px;
+      color: var(--text-dim); border-bottom: 1px solid var(--border);
+      background: #0d0d0d;
+    }
+    .portfolio-table td {
+      padding: 10px 12px; border-bottom: 1px solid #1a1a1a;
+      transition: background 0.2s;
+    }
+    .portfolio-table tr.loan-row { cursor: pointer; }
+    .portfolio-table tr.loan-row:hover td { background: #1a1a1a; }
+    .portfolio-table tr.loan-row.selected td { background: #1a1400; border-color: var(--accent); }
+    .status-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      margin-right: 6px; vertical-align: middle;
+    }
+    .status-dot.healthy { background: var(--green); }
+    .status-dot.frozen  { background: var(--red); animation: pulse-red 1.5s infinite; }
+    .status-dot.pending { background: var(--text-dim); }
+    @keyframes pulse-red {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(204,0,0,0.5); }
+      50%      { box-shadow: 0 0 0 4px rgba(204,0,0,0); }
+    }
+
+    
+    .detail-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;
+    }
+    @media (max-width: 700px) { .detail-grid { grid-template-columns: 1fr; } }
+
+    .metric-card {
+      background: var(--card-bg); border: 1px solid var(--border); padding: 16px 20px;
+    }
+    .metric-card .metric-label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 2px;
+      color: var(--text-dim); margin-bottom: 6px;
+    }
+    .metric-card .metric-value {
+      font-size: 32px; font-weight: 700; margin-bottom: 2px;
+      transition: color 0.4s;
+    }
+    .metric-card .metric-threshold {
+      font-size: 11px; color: var(--text-dim); margin-bottom: 10px;
+    }
+    .bar-track {
+      width: 100%; height: 5px; background: #1a1a1a; position: relative; margin-top: 6px;
+    }
+    .bar-fill { height: 100%; transition: width 0.5s ease, background 0.4s ease; }
+    .bar-threshold-mark {
+      position: absolute; top: -3px; height: 11px; width: 2px; background: var(--text-dim);
+    }
+
+    
+    .status-badge {
+      background: var(--card-bg); border: 1px solid var(--border);
+      padding: 16px; margin-bottom: 16px; text-align: center;
+      transition: border-color 0.5s;
+    }
+    .status-badge.frozen { border-color: var(--red); animation: redFlash 0.5s ease-out; }
+    .status-badge.healthy { border-color: var(--green); }
+    .status-text {
+      font-size: 16px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    }
+    .status-text.frozen  { color: var(--red); }
+    .status-text.healthy { color: var(--green); }
+    @keyframes redFlash {
+      0% { background: rgba(204,0,0,0.25); } 100% { background: var(--card-bg); }
+    }
+
+    
+    .sim-panel {
+      background: var(--card-bg); border: 1px solid var(--border);
+      padding: 16px 20px; margin-bottom: 16px;
+    }
+    .sim-panel-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px;
+    }
+    .sim-panel-title {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--accent); font-weight: 700;
+    }
+    .sim-buttons {
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    .sim-btn {
+      font-family: var(--font); font-size: 11px; padding: 8px 16px;
+      border: 1px solid var(--border); background: #1a1a1a;
+      color: var(--text); cursor: pointer; text-transform: uppercase;
+      letter-spacing: 0.5px; transition: all 0.2s;
+    }
+    .sim-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .sim-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .sim-btn.btn-green  { border-color: var(--green); color: var(--green); }
+    .sim-btn.btn-yellow { border-color: var(--yellow); color: var(--yellow); }
+    .sim-btn.btn-red    { border-color: var(--red); color: var(--red); }
+    .sim-btn.btn-accent { border-color: var(--accent); color: #000; background: var(--accent); font-weight: 700; }
+    .sim-btn.btn-accent:hover { background: #e65c00; }
+    .sim-status {
+      font-size: 11px; color: var(--text-dim); margin-top: 8px; min-height: 16px;
+    }
+
+    
+    .pipeline-viz {
+      background: var(--card-bg); border: 1px solid var(--border);
+      padding: 16px 20px; margin-bottom: 16px; overflow-x: auto;
+    }
+    .pipeline-stages {
+      display: flex; align-items: center; gap: 0; min-width: 600px; justify-content: center;
+    }
+    .pipeline-stage {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 10px 14px; border: 1px solid var(--border); background: #0d0d0d;
+      min-width: 100px; transition: all 0.3s;
+    }
+    .pipeline-stage.active {
+      border-color: var(--accent); background: #1a1000;
+      box-shadow: 0 0 10px rgba(255,102,0,0.2);
+    }
+    .pipeline-stage.done { border-color: var(--green); background: #001a0d; }
+    .pipeline-stage-icon { font-size: 18px; margin-bottom: 4px; }
+    .pipeline-stage-label {
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
+      color: var(--text-dim); text-align: center; line-height: 1.3;
+    }
+    .pipeline-stage.active .pipeline-stage-label { color: var(--accent); }
+    .pipeline-stage.done .pipeline-stage-label { color: var(--green); }
+    .pipeline-arrow {
+      font-size: 14px; color: var(--text-muted); padding: 0 4px; flex-shrink: 0;
+    }
+    .pipeline-arrow.active { color: var(--accent); }
+
+    
+    .event-log {
+      background: var(--card-bg); border: 1px solid var(--border);
+      margin-bottom: 16px; max-height: 260px; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .event-log-header {
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
+      font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--text-dim); display: flex; justify-content: space-between;
+      align-items: center; flex-shrink: 0;
+    }
+    .event-log-count {
+      background: var(--accent); color: #000; padding: 1px 6px;
+      font-size: 9px; font-weight: 700;
+    }
+    .event-log-body {
+      padding: 0; overflow-y: auto; flex: 1;
+      scrollbar-width: thin; scrollbar-color: var(--border) var(--card-bg);
+    }
+    .event-entry {
+      padding: 8px 16px; border-bottom: 1px solid #1a1a1a;
+      font-size: 11px; display: flex; gap: 12px; align-items: flex-start;
+      animation: fadeIn 0.3s ease-out;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+    .event-time { color: var(--text-dim); white-space: nowrap; flex-shrink: 0; font-size: 10px; }
+    .event-type {
+      font-weight: 700; white-space: nowrap; flex-shrink: 0; font-size: 10px;
+      padding: 1px 6px; letter-spacing: 0.5px;
+    }
+    .event-type.breach  { background: rgba(204,0,0,0.2); color: var(--red); }
+    .event-type.healthy { background: rgba(0,204,68,0.2); color: var(--green); }
+    .event-type.frozen  { background: rgba(204,0,0,0.3); color: var(--red); }
+    .event-type.unfrozen { background: rgba(0,204,68,0.3); color: var(--green); }
+    .event-type.info    { background: rgba(51,136,255,0.2); color: var(--blue); }
+    .event-detail { color: var(--text-dim); font-size: 11px; }
+    .event-detail .val { color: var(--text); }
+
+    
+    .info-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; border-bottom: 1px solid #1a1a1a; font-size: 12px;
+    }
+    .info-row .info-label {
+      color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; font-size: 10px;
+    }
+    .info-row .info-value { color: var(--text); word-break: break-all; }
+    .info-row a { color: var(--accent); text-decoration: none; }
+
+    
+    .accordion {
+      background: var(--card-bg); border: 1px solid var(--border); margin-top: 16px;
+    }
+    .accordion-header {
+      padding: 12px 16px; cursor: pointer; font-size: 11px;
+      text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim);
+      display: flex; justify-content: space-between; align-items: center; user-select: none;
+    }
+    .accordion-header:hover { color: var(--text); }
+    .accordion-body {
+      display: none; padding: 0 16px 16px; font-size: 12px;
+      line-height: 1.8; color: var(--text-dim);
+    }
+    .accordion-body.open { display: block; }
+    .accordion-body ol { padding-left: 20px; }
+    .accordion-body code { color: var(--accent); font-size: 11px; }
+
+    
+    .error-banner {
+      background: rgba(204,0,0,0.12); border: 1px solid var(--red);
+      padding: 10px 16px; margin-bottom: 12px; font-size: 12px;
+      color: var(--red); display: none;
+    }
+    .error-banner.visible { display: block; }
+
+    
+    .footer {
+      text-align: center; padding: 16px 0; font-size: 10px;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;
+    }
+
+    .value-flash { animation: flashOrange 0.5s ease-out; }
+    @keyframes flashOrange { 0% { color: var(--accent); } 100% { color: inherit; } }
+
+    
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--card-bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    
+    <div class="header">
+      <div class="header-left">
+        <span class="header-title">SENTINELFI</span>
+        <span class="header-badge">COVENANT MONITOR</span>
+      </div>
+      <span class="header-meta">
+        <select id="network-select" style="background:var(--card-bg);color:var(--accent);border:1px solid var(--border);font-family:var(--font);font-size:11px;padding:2px 6px;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;" onchange="switchNetwork(this.value)">
+          <option value="anvil">LOCAL ANVIL</option>
+          <option value="sepolia">SEPOLIA TESTNET</option>
+        </select>
+        &nbsp;|&nbsp;
+        <span id="live-clock">--:--:--</span><span class="cursor">&#9608;</span>
+      </span>
+    </div>
+<div class="error-banner" id="error-banner"></div>
+
+    
+    <div class="section-label">PORTFOLIO OVERVIEW <span style="color:var(--text-muted);font-size:9px;letter-spacing:0;text-transform:none">- live from getAllLoans() on-chain</span></div>
+    <table class="portfolio-table">
+      <thead>
+        <tr>
+          <th>LOAN</th>
+          <th>LEVERAGE</th>
+          <th>DSCR</th>
+          <th>MAX LEV</th>
+          <th>MIN DSCR</th>
+          <th>STATUS</th>
+          <th>UPDATED</th>
+        </tr>
+      </thead>
+      <tbody id="portfolio-body">
+        <tr><td colspan="7" style="color:var(--text-dim);text-align:center;padding:20px;">Loading portfolio...</td></tr>
+      </tbody>
+    </table>
+
+    
+    <div class="detail-grid">
+      <div class="metric-card">
+        <div class="metric-label">DEBT SERVICE COVERAGE RATIO</div>
+        <div class="metric-value" id="dscr-value">-</div>
+        <div class="metric-threshold" id="dscr-threshold">COVENANT MIN: --</div>
+        <div class="bar-track">
+          <div class="bar-fill" id="dscr-bar" style="width:0%;background:var(--text-dim)"></div>
+          <div class="bar-threshold-mark" id="dscr-mark" style="left:0%"></div>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">LEVERAGE RATIO</div>
+        <div class="metric-value" id="leverage-value">-</div>
+        <div class="metric-threshold" id="leverage-threshold">COVENANT MAX: --</div>
+        <div class="bar-track">
+          <div class="bar-fill" id="leverage-bar" style="width:0%;background:var(--text-dim)"></div>
+          <div class="bar-threshold-mark" id="leverage-mark" style="left:0%"></div>
+        </div>
+      </div>
+    </div>
+<div class="status-badge" id="status-badge">
+      <div class="status-text" id="status-text">SELECT A LOAN</div>
+    </div>
+<div id="raw-data-section" style="background:var(--card-bg);border:1px solid var(--border);padding:10px 16px;margin-bottom:16px;font-size:10px;color:var(--text-dim);display:none;">
+      <div style="margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;font-size:9px;color:var(--text-muted);">RAW ON-CHAIN STATE (from getLoanHealth)</div>
+      <div id="raw-data-content" style="font-family:var(--font);line-height:1.6;word-break:break-all;"></div>
+    </div>
+
+    
+    <div class="sim-panel">
+      <div class="sim-panel-header">
+        <span class="sim-panel-title">SIMULATION CONTROL</span>
+        <span style="font-size:10px;color:var(--text-dim)" id="sim-loan-label">No loan selected</span>
+      </div>
+      <div class="sim-buttons">
+        <button class="sim-btn btn-green" id="btn-healthy" disabled onclick="simulate('healthy')" title="Sends Lev: 4.20x, DSCR: 2.10x">&#9679; Healthy</button>
+        <button class="sim-btn btn-yellow" id="btn-borderline" disabled onclick="simulate('borderline')" title="Sends Lev: 5.90x, DSCR: 1.30x">&#9679; Borderline</button>
+        <button class="sim-btn btn-red" id="btn-breach" disabled onclick="simulate('breach')" title="Sends Lev: 7.20x, DSCR: 0.95x">&#9679; Breach</button>
+        <button class="sim-btn btn-green" id="btn-recovery" disabled onclick="simulate('recovery')" title="Sends Lev: 4.00x, DSCR: 2.00x">&#9679; Recovery</button>
+        <div style="width:1px;background:var(--border);margin:0 4px"></div>
+        <button class="sim-btn btn-accent" id="btn-auto-demo" onclick="runAutoDemo()">&#9654; AUTO DEMO</button>
+      </div>
+      <div class="sim-status" id="sim-status"></div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:6px;">
+        Each button sends a real Ethereum tx to <span style="color:var(--accent)">LoanFacility.onReport()</span> on-chain. Values shown in tooltips.
+      </div>
+    </div>
+
+    
+    <div class="section-label">CRE WORKFLOW PIPELINE <span style="color:var(--text-muted);font-size:9px;letter-spacing:0;text-transform:none">- represents DON execution stages</span></div>
+    <div class="pipeline-viz">
+      <div class="pipeline-stages" id="pipeline-stages">
+        <div class="pipeline-stage" data-stage="0">
+          <div class="pipeline-stage-icon">&#9200;</div>
+          <div class="pipeline-stage-label">CRON<br>TRIGGER</div>
+        </div>
+        <div class="pipeline-arrow">&#9654;</div>
+        <div class="pipeline-stage" data-stage="1">
+          <div class="pipeline-stage-icon">&#128230;</div>
+          <div class="pipeline-stage-label">FETCH<br>REPORT</div>
+        </div>
+        <div class="pipeline-arrow">&#9654;</div>
+        <div class="pipeline-stage" data-stage="2">
+          <div class="pipeline-stage-icon">&#129302;</div>
+          <div class="pipeline-stage-label">LLM<br>EXTRACT</div>
+        </div>
+        <div class="pipeline-arrow">&#9654;</div>
+        <div class="pipeline-stage" data-stage="3">
+          <div class="pipeline-stage-icon">&#128202;</div>
+          <div class="pipeline-stage-label">MEDIAN<br>CONSENSUS</div>
+        </div>
+        <div class="pipeline-arrow">&#9654;</div>
+        <div class="pipeline-stage" data-stage="4">
+          <div class="pipeline-stage-icon">&#128279;</div>
+          <div class="pipeline-stage-label">KEYSTONE<br>FORWARD</div>
+        </div>
+        <div class="pipeline-arrow">&#9654;</div>
+        <div class="pipeline-stage" data-stage="5">
+          <div class="pipeline-stage-icon">&#128220;</div>
+          <div class="pipeline-stage-label">ON-CHAIN<br>ENFORCE</div>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="event-log">
+      <div class="event-log-header">
+        <span>LIVE EVENT LOG <span style="color:var(--text-muted);font-size:9px;letter-spacing:0;text-transform:none">- on-chain events via queryFilter()</span></span>
+        <span class="event-log-count" id="event-count">0</span>
+      </div>
+      <div class="event-log-body" id="event-log-body">
+</div>
+    </div>
+
+    
+    <div id="info-section">
+      <div class="info-row">
+        <span class="info-label">CONTRACT</span>
+        <span class="info-value" id="contract-display" style="font-size:11px;color:var(--accent)"></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">NETWORK</span>
+        <span class="info-value" id="network-display">Localhost Anvil (Chain 31337)</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">POLLING</span>
+        <span class="info-value">Every 5 seconds</span>
+      </div>
+    </div>
+
+    
+    <div class="accordion">
+      <div class="accordion-header" id="accordion-toggle">
+        HOW IT WORKS <span id="accordion-arrow">&#9656;</span>
+      </div>
+      <div class="accordion-body" id="accordion-body">
+        <ol>
+          <li>A <code>CRE CronTrigger</code> fires quarterly (Jan 1, Apr 1, Jul 1, Oct 1).</li>
+          <li>Every DON node independently fetches the borrower&rsquo;s financial report from the data source.</li>
+          <li>Each node calls <code>Gemini 2.0 Flash</code> to extract DSCR and leverage ratio from unstructured text.</li>
+          <li><code>consensusMedianAggregation</code> takes the median across all nodes - Byzantine Fault Tolerant.</li>
+          <li>The median metrics are ABI-encoded and written to <code>LoanFacility.sol</code> via the Keystone Forwarder.</li>
+          <li>The contract checks covenants: if <code>leverage &gt; max</code> OR <code>DSCR &lt; min</code>, the loan is <strong>automatically frozen</strong>.</li>
+          <li>This dashboard polls <code>getAllLoans()</code> every 5s to display the portfolio state in real-time.</li>
+        </ol>
+      </div>
+    </div>
+<div class="footer">
+      SentinelFi - Chainlink Convergence Hackathon 2026 - Risk & Compliance Track
+    </div>
+  </div>
+
+  
+  <script>
+  const NETWORKS = {
+    anvil: {
+      CONTRACT: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      RPC_URL:  "http://127.0.0.1:8545",
+      API_URL:  "http://localhost:3456",
+      LABEL:    "Localhost Anvil (Chain 31337)",
+      EXPLORER: null,
+    },
+    sepolia: {
+      CONTRACT: "0xE8c1C5aC502EF054F7F65C56e4e84A2Ef69bf6D9",
+      RPC_URL:  "https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY_HERE",  // Replace with your Alchemy key or use a proxy
+      API_URL:  "http://localhost:3456",
+      LABEL:    "Sepolia Testnet (Chain 11155111)",
+      EXPLORER: "https://sepolia.etherscan.io",
+    },
+  };
+
+  let CONFIG = {
+    ...NETWORKS.anvil,
+    SCALE:    10000,
+    POLL_MS:  5000,
+  };
+
+  const LOAN_NAMES = {
+    "0x312cfb52614a2cbf2f8ece234ea157b45b86a72cd194895d80c3508ace33e5a2": "ACME-001",
+    "0x150b4c129e04fc1a113ccc8bf92b0bbcb57aba8b5ca620530aa7125b95c0af15": "BETA-002",
+    "0x9e2dadcc004dc693e8c1ea57896e12a099f72bf608cbd90248de618eb523cf0a": "GAMMA-003",
+  };
+  const ABI = [
+    "function getLoanHealth(bytes32 loanId) view returns (tuple(uint256 maxLeverageScaled, uint256 minDscrScaled, uint256 lastLeverage, uint256 lastDscr, uint256 lastUpdated, bool isFrozen))",
+    "function getLoanIds() view returns (bytes32[])",
+    "function getAllLoans() view returns (bytes32[] ids, tuple(uint256 maxLeverageScaled, uint256 minDscrScaled, uint256 lastLeverage, uint256 lastDscr, uint256 lastUpdated, bool isFrozen)[] terms)",
+    "event CovenantBreached(bytes32 indexed loanId, uint256 leverage, uint256 dscr, uint256 timestamp)",
+    "event CovenantHealthy(bytes32 indexed loanId, uint256 leverage, uint256 dscr, uint256 timestamp)",
+    "event LoanFrozen(bytes32 indexed loanId, uint256 timestamp)",
+    "event LoanUnfrozen(bytes32 indexed loanId, uint256 timestamp)",
+  ];
+  const SIM_PRESETS = {
+    healthy:    { leverage: 4.2,  dscr: 2.10 },
+    borderline: { leverage: 5.9,  dscr: 1.30 },
+    breach:     { leverage: 7.2,  dscr: 0.95 },
+    recovery:   { leverage: 4.0,  dscr: 2.00 },
+  };
+  let provider = new ethers.JsonRpcProvider(CONFIG.RPC_URL);
+  let contract = new ethers.Contract(CONFIG.CONTRACT, ABI, provider);
+
+  function switchNetwork(networkKey) {
+    const net = NETWORKS[networkKey];
+    if (!net) return;
+    CONFIG = { ...net, SCALE: 10000, POLL_MS: networkKey === 'sepolia' ? 15000 : 5000 };
+    provider = new ethers.JsonRpcProvider(CONFIG.RPC_URL);
+    contract = new ethers.Contract(CONFIG.CONTRACT, ABI, provider);
+    $contractDisp.textContent = CONFIG.CONTRACT;
+    $("network-display").textContent = CONFIG.LABEL;
+    const isSepolia = networkKey === 'sepolia';
+    ["btn-healthy", "btn-borderline", "btn-breach", "btn-recovery", "btn-auto-demo"].forEach(id => {
+      $(id).disabled = isSepolia;
+      if (isSepolia) $(id).title = "Simulation disabled on Sepolia (read-only mode)";
+    });
+    if (isSepolia) {
+      $simStatus.textContent = "Read-only mode - Sepolia has no local forwarder key";
+      $simStatus.style.color = "var(--yellow)";
+    } else {
+      $simStatus.textContent = "";
+    }
+    selectedLoanId = null;
+    portfolioData = [];
+    eventEntries = [];
+    lastEventBlock = 0;
+    $eventLogBody.innerHTML = "";
+    $eventCount.textContent = "0";
+    addInfoEntry(`Switched to ${CONFIG.LABEL}`);
+    if (window.__schedulePoll) window.__schedulePoll();
+    pollPortfolio();
+    pollEvents();
+  }
+
+  let selectedLoanId = null;
+  let portfolioData  = [];
+  let eventEntries   = [];
+  let lastEventBlock = 0;
+  let isSimulating   = false;
+  let isDemoRunning  = false;
+  const $ = (id) => document.getElementById(id);
+  const $clock         = $("live-clock");
+  const $errorBanner   = $("error-banner");
+  const $portfolioBody = $("portfolio-body");
+  const $dscrValue     = $("dscr-value");
+  const $leverageValue = $("leverage-value");
+  const $dscrThreshold = $("dscr-threshold");
+  const $levThreshold  = $("leverage-threshold");
+  const $dscrBar       = $("dscr-bar");
+  const $dscrMark      = $("dscr-mark");
+  const $leverageBar   = $("leverage-bar");
+  const $leverageMark  = $("leverage-mark");
+  const $statusBadge   = $("status-badge");
+  const $statusText    = $("status-text");
+  const $simStatus     = $("sim-status");
+  const $simLoanLabel  = $("sim-loan-label");
+  const $eventLogBody  = $("event-log-body");
+  const $eventCount    = $("event-count");
+  const $contractDisp  = $("contract-display");
+  function updateClock() {
+    $clock.textContent = new Date().toLocaleTimeString("en-US", { hour12: false });
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  $contractDisp.textContent = CONFIG.CONTRACT;
+
+  $("accordion-toggle").addEventListener("click", () => {
+    const body = $("accordion-body");
+    const open = body.classList.toggle("open");
+    $("accordion-arrow").innerHTML = open ? "&#9662;" : "&#9656;";
+  });
+  async function pollPortfolio() {
+    try {
+      const result = await contract.getAllLoans();
+      const ids   = result[0];
+      const terms = result[1];
+
+      portfolioData = ids.map((id, i) => ({
+        id:    id,
+        name:  LOAN_NAMES[id] || id.slice(0, 10) + "...",
+        terms: {
+          maxLeverage: Number(terms[i][0]) / CONFIG.SCALE,
+          minDscr:     Number(terms[i][1]) / CONFIG.SCALE,
+          lastLeverage: Number(terms[i][2]) / CONFIG.SCALE,
+          lastDscr:     Number(terms[i][3]) / CONFIG.SCALE,
+          lastUpdated:  Number(terms[i][4]),
+          isFrozen:     terms[i][5],
+        },
+      }));
+
+      renderPortfolio();
+
+      if (selectedLoanId) {
+        const selected = portfolioData.find(l => l.id === selectedLoanId);
+        if (selected) renderDetail(selected);
+      }
+
+      hideError();
+    } catch (e) {
+      showError("Poll failed: " + (e.message || e));
+    }
+  }
+
+  function renderPortfolio() {
+    $portfolioBody.innerHTML = portfolioData.map(loan => {
+      const t = loan.terms;
+      const hasData   = t.lastUpdated > 0;
+      const isFrozen  = t.isFrozen;
+      const isSelected = loan.id === selectedLoanId;
+
+      const statusClass = !hasData ? "pending" : (isFrozen ? "frozen" : "healthy");
+      const statusLabel = !hasData ? "NO DATA" : (isFrozen ? "FROZEN" : "HEALTHY");
+      const leverageStr = hasData ? t.lastLeverage.toFixed(2) + "x" : "--";
+      const dscrStr     = hasData ? t.lastDscr.toFixed(2) + "x" : "--";
+      const leverageColor = hasData && t.lastLeverage > t.maxLeverage ? "var(--red)" : (hasData ? "var(--green)" : "var(--text-dim)");
+      const dscrColor     = hasData && t.lastDscr < t.minDscr ? "var(--red)" : (hasData ? "var(--green)" : "var(--text-dim)");
+      const updated = hasData ? new Date(t.lastUpdated * 1000).toLocaleTimeString("en-US", { hour12: false }) : "--";
+
+      return `<tr class="loan-row${isSelected ? " selected" : ""}" onclick="selectLoan('${loan.id}')">
+        <td><strong style="color:var(--accent)">${loan.name}</strong></td>
+        <td style="color:${leverageColor};font-weight:600">${leverageStr}</td>
+        <td style="color:${dscrColor};font-weight:600">${dscrStr}</td>
+        <td style="color:var(--text-dim)">${t.maxLeverage.toFixed(1)}x</td>
+        <td style="color:var(--text-dim)">${t.minDscr.toFixed(2)}x</td>
+        <td><span class="status-dot ${statusClass}"></span>${statusLabel}</td>
+        <td style="color:var(--text-dim)">${updated}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  function selectLoan(loanId) {
+    selectedLoanId = loanId;
+    const loan = portfolioData.find(l => l.id === loanId);
+    if (!loan) return;
+
+    renderDetail(loan);
+    renderPortfolio();
+    const isSepolia = CONFIG.RPC_URL === NETWORKS.sepolia.RPC_URL;
+    if (!isSepolia) {
+      ["btn-healthy", "btn-borderline", "btn-breach", "btn-recovery"].forEach(id => {
+        $(id).disabled = false;
+      });
+    }
+    $simLoanLabel.textContent = loan.name;
+    $simLoanLabel.style.color = "var(--accent)";
+  }
+
+  function renderDetail(loan) {
+    const t = loan.terms;
+    const hasData = t.lastUpdated > 0;
+    $dscrThreshold.textContent  = `COVENANT MIN: ${t.minDscr.toFixed(2)}x`;
+    $levThreshold.textContent   = `COVENANT MAX: ${t.maxLeverage.toFixed(1)}x`;
+    $dscrMark.style.left     = ((t.minDscr / 4) * 100) + "%";
+    $leverageMark.style.left = ((t.maxLeverage / 12) * 100) + "%";
+
+    if (!hasData) {
+      $dscrValue.textContent     = "--";
+      $dscrValue.style.color     = "var(--text-dim)";
+      $leverageValue.textContent = "--";
+      $leverageValue.style.color = "var(--text-dim)";
+      $dscrBar.style.width       = "0%";
+      $leverageBar.style.width   = "0%";
+      $statusText.textContent    = "AWAITING FIRST REPORT";
+      $statusText.className      = "status-text";
+      $statusBadge.className     = "status-badge";
+      return;
+    }
+    const dscrVal  = t.lastDscr;
+    const dscrBad  = dscrVal < t.minDscr;
+    $dscrValue.textContent = dscrVal.toFixed(2) + "x";
+    $dscrValue.style.color = dscrBad ? "var(--red)" : "var(--green)";
+    $dscrBar.style.width   = Math.min((dscrVal / 4) * 100, 100) + "%";
+    $dscrBar.style.background = dscrBad ? "var(--red)" : "var(--green)";
+    flash($dscrValue);
+    const levVal  = t.lastLeverage;
+    const levBad  = levVal > t.maxLeverage;
+    $leverageValue.textContent = levVal.toFixed(2) + "x";
+    $leverageValue.style.color = levBad ? "var(--red)" : "var(--green)";
+    $leverageBar.style.width   = Math.min((levVal / 12) * 100, 100) + "%";
+    $leverageBar.style.background = levBad ? "var(--red)" : "var(--green)";
+    flash($leverageValue);
+    if (t.isFrozen) {
+      $statusText.textContent = "\u{1F534} FROZEN - COVENANT BREACH DETECTED";
+      $statusText.className   = "status-text frozen";
+      $statusBadge.className  = "status-badge frozen";
+    } else {
+      $statusText.textContent = "\u{1F7E2} HEALTHY - ALL COVENANTS IN COMPLIANCE";
+      $statusText.className   = "status-text healthy";
+      $statusBadge.className  = "status-badge healthy";
+    }
+    const rawSection = $("raw-data-section");
+    const rawContent = $("raw-data-content");
+    rawSection.style.display = "block";
+    rawContent.innerHTML = `
+      <span style="color:var(--text-muted)">loanId:</span> <span style="color:var(--accent)">${loan.id}</span><br>
+      <span style="color:var(--text-muted)">maxLeverageScaled:</span> <span style="color:var(--text)">${Math.round(t.maxLeverage * CONFIG.SCALE)}</span> <span style="color:var(--text-muted)">(${t.maxLeverage.toFixed(1)}x)</span>
+      &nbsp;&nbsp;<span style="color:var(--text-muted)">minDscrScaled:</span> <span style="color:var(--text)">${Math.round(t.minDscr * CONFIG.SCALE)}</span> <span style="color:var(--text-muted)">(${t.minDscr.toFixed(2)}x)</span><br>
+      <span style="color:var(--text-muted)">lastLeverage:</span> <span style="color:${levBad ? 'var(--red)' : 'var(--green)'}">${hasData ? Math.round(t.lastLeverage * CONFIG.SCALE) : 0}</span> <span style="color:var(--text-muted)">(${hasData ? t.lastLeverage.toFixed(2) : '0.00'}x)</span>
+      &nbsp;&nbsp;<span style="color:var(--text-muted)">lastDscr:</span> <span style="color:${dscrBad ? 'var(--red)' : 'var(--green)'}">${hasData ? Math.round(t.lastDscr * CONFIG.SCALE) : 0}</span> <span style="color:var(--text-muted)">(${hasData ? t.lastDscr.toFixed(2) : '0.00'}x)</span><br>
+      <span style="color:var(--text-muted)">lastUpdated:</span> <span style="color:var(--text)">${t.lastUpdated}</span> <span style="color:var(--text-muted)">(${hasData ? new Date(t.lastUpdated * 1000).toISOString() : 'never'})</span>
+      &nbsp;&nbsp;<span style="color:var(--text-muted)">isFrozen:</span> <span style="color:${t.isFrozen ? 'var(--red)' : 'var(--green)'}">${t.isFrozen}</span>
+    `.trim();
+  }
+
+  function flash(el) {
+    el.classList.remove("value-flash");
+    void el.offsetHeight;
+    el.classList.add("value-flash");
+  }
+  async function pollEvents() {
+    try {
+      const currentBlock = await provider.getBlockNumber();
+      const MAX_LOOKBACK = 10000;
+      const from = lastEventBlock || Math.max(0, currentBlock - MAX_LOOKBACK);
+      if (from > currentBlock) return;
+
+      const [breaches, healthies, freezes, unfreezes] = await Promise.all([
+        contract.queryFilter("CovenantBreached", from, currentBlock),
+        contract.queryFilter("CovenantHealthy", from, currentBlock),
+        contract.queryFilter("LoanFrozen",      from, currentBlock),
+        contract.queryFilter("LoanUnfrozen",    from, currentBlock),
+      ]);
+
+      const allEvents = [];
+
+      breaches.forEach(e => allEvents.push({
+        block: e.blockNumber, index: e.index, type: "breach",
+        label: "BREACH",
+        loanId: e.args[0],
+        detail: `Lev: ${(Number(e.args[1])/CONFIG.SCALE).toFixed(2)}x | DSCR: ${(Number(e.args[2])/CONFIG.SCALE).toFixed(2)}x`,
+        chainTime: Number(e.args[3]),
+      }));
+      healthies.forEach(e => allEvents.push({
+        block: e.blockNumber, index: e.index, type: "healthy",
+        label: "HEALTHY",
+        loanId: e.args[0],
+        detail: `Lev: ${(Number(e.args[1])/CONFIG.SCALE).toFixed(2)}x | DSCR: ${(Number(e.args[2])/CONFIG.SCALE).toFixed(2)}x`,
+        chainTime: Number(e.args[3]),
+      }));
+      freezes.forEach(e => allEvents.push({
+        block: e.blockNumber, index: e.index, type: "frozen",
+        label: "FROZEN",
+        loanId: e.args[0],
+        detail: "Facility frozen due to covenant breach",
+        chainTime: Number(e.args[1]),
+      }));
+      unfreezes.forEach(e => allEvents.push({
+        block: e.blockNumber, index: e.index, type: "unfrozen",
+        label: "UNFROZEN",
+        loanId: e.args[0],
+        detail: "Facility unfrozen after recovery",
+        chainTime: Number(e.args[1]),
+      }));
+
+      allEvents.sort((a, b) => (a.block - b.block) || (a.index - b.index));
+      const newEvents = lastEventBlock === 0 ? allEvents : allEvents.filter(e => e.block > from - 1);
+
+      newEvents.forEach(evt => {
+        const name = LOAN_NAMES[evt.loanId] || evt.loanId.slice(0, 10);
+        const ts = evt.chainTime ? new Date(evt.chainTime * 1000).toLocaleTimeString("en-US", { hour12: false }) : null;
+        addEventEntry(evt.type, evt.label, `[${name}] ${evt.detail}`, evt.block, ts);
+      });
+
+      lastEventBlock = currentBlock + 1;
+    } catch (e) {
+    }
+  }
+
+  function addEventEntry(type, label, detail, blockNum, chainTimestamp) {
+    const time = chainTimestamp || new Date().toLocaleTimeString("en-US", { hour12: false });
+    const timeLabel = chainTimestamp ? 'blk' : 'local';
+    const div = document.createElement("div");
+    div.className = "event-entry";
+    div.innerHTML = `
+      <span class="event-time" title="${timeLabel} time">${time}</span>
+      <span class="event-type ${type}">${label}</span>
+      <span class="event-detail">${detail} <span style="color:var(--text-muted)">#${blockNum || "?"}</span></span>
+    `;
+    $eventLogBody.insertBefore(div, $eventLogBody.firstChild);
+    eventEntries.push(div);
+    $eventCount.textContent = eventEntries.length;
+  }
+
+  function addInfoEntry(message) {
+    addEventEntry("info", "INFO", message, "");
+  }
+  async function simulate(preset) {
+    if (!selectedLoanId || isSimulating) return;
+    const params = SIM_PRESETS[preset];
+    if (!params) return;
+
+    isSimulating = true;
+    setSimButtons(false);
+    $simStatus.textContent = `Sending ${preset} report (Lev: ${params.leverage.toFixed(2)}x, DSCR: ${params.dscr.toFixed(2)}x)...`;
+    $simStatus.style.color = "var(--accent)";
+    resetPipeline();
+    for (let s = 0; s < 6; s++) {
+      setPipelineStage(s);
+      await new Promise(r => setTimeout(r, 150));
+    }
+
+    try {
+      const resp = await fetch(`${CONFIG.API_URL}/api/simulate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          loanId: selectedLoanId,
+          leverage: params.leverage,
+          dscr: params.dscr,
+        }),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        completePipeline();
+        $simStatus.textContent = `Tx ${data.txHash.slice(0, 18)}... confirmed in block #${data.blockNumber}`;
+        $simStatus.style.color = "var(--green)";
+        addInfoEntry(`${preset.toUpperCase()} report sent to ${LOAN_NAMES[selectedLoanId] || "?"} (Lev: ${params.leverage}x, DSCR: ${params.dscr}x) - tx: ${data.txHash.slice(0, 14)}...`);
+        await pollPortfolio();
+        await pollEvents();
+      } else {
+        resetPipeline();
+        $simStatus.textContent = `Error: ${data.error}`;
+        $simStatus.style.color = "var(--red)";
+      }
+    } catch (e) {
+      resetPipeline();
+      $simStatus.textContent = `Network error: ${e.message}`;
+      $simStatus.style.color = "var(--red)";
+    }
+
+    isSimulating = false;
+    if (!isDemoRunning) setSimButtons(true);
+  }
+
+  function setSimButtons(enabled) {
+    ["btn-healthy", "btn-borderline", "btn-breach", "btn-recovery"].forEach(id => {
+      $(id).disabled = !enabled || !selectedLoanId;
+    });
+  }
+  async function runAutoDemo() {
+    if (isDemoRunning) return;
+    if (!selectedLoanId && portfolioData.length > 0) {
+      selectLoan(portfolioData[0].id);
+    }
+    if (!selectedLoanId) {
+      $simStatus.textContent = "No loans available";
+      return;
+    }
+
+    isDemoRunning = true;
+    setSimButtons(false);
+    $("btn-auto-demo").disabled = true;
+    $("btn-auto-demo").innerHTML = "&#9632; RUNNING...";
+    addInfoEntry("Auto-demo sequence started");
+    $simStatus.textContent = "Auto-demo running...";
+    $simStatus.style.color = "var(--accent)";
+
+    resetPipeline();
+
+    try {
+      const url = `${CONFIG.API_URL}/api/auto-demo?loanId=${selectedLoanId}`;
+      const eventSource = new EventSource(url);
+
+      await new Promise((resolve, reject) => {
+        eventSource.onmessage = async (evt) => {
+          const data = JSON.parse(evt.data);
+
+          if (data.type === "pipeline") {
+            setPipelineStage(data.pipelineStage);
+          } else if (data.type === "step-start") {
+            $simStatus.textContent = `Step ${data.step + 1}/${data.total}: ${data.label}`;
+            $simStatus.style.color = "var(--accent)";
+            resetPipeline();
+          } else if (data.type === "step-done") {
+            $simStatus.textContent = `${data.label} confirmed (block #${data.blockNumber})`;
+            $simStatus.style.color = "var(--green)";
+            completePipeline();
+            await pollPortfolio();
+            await pollEvents();
+          } else if (data.type === "step-error") {
+            $simStatus.textContent = `${data.label} failed: ${data.error}`;
+            $simStatus.style.color = "var(--red)";
+          } else if (data.type === "demo-complete") {
+            eventSource.close();
+            resolve();
+          }
+        };
+
+        eventSource.onerror = () => {
+          eventSource.close();
+          reject(new Error("SSE connection lost"));
+        };
+      });
+
+      $simStatus.textContent = "Auto-demo complete!";
+      $simStatus.style.color = "var(--green)";
+      addInfoEntry("Auto-demo sequence completed successfully");
+
+    } catch (e) {
+      $simStatus.textContent = `Demo error: ${e.message}`;
+      $simStatus.style.color = "var(--red)";
+    }
+
+    isDemoRunning = false;
+    setSimButtons(true);
+    $("btn-auto-demo").disabled = false;
+    $("btn-auto-demo").innerHTML = "&#9654; AUTO DEMO";
+    resetPipeline();
+  }
+  function resetPipeline() {
+    document.querySelectorAll(".pipeline-stage").forEach(s => {
+      s.classList.remove("active", "done");
+    });
+    document.querySelectorAll(".pipeline-arrow").forEach(a => {
+      a.classList.remove("active");
+    });
+  }
+
+  function setPipelineStage(stageIndex) {
+    const stages = document.querySelectorAll(".pipeline-stage");
+    const arrows = document.querySelectorAll(".pipeline-arrow");
+
+    stages.forEach((s, i) => {
+      s.classList.remove("active");
+      if (i < stageIndex) {
+        s.classList.add("done");
+      } else if (i === stageIndex) {
+        s.classList.add("active");
+        s.classList.remove("done");
+      } else {
+        s.classList.remove("done");
+      }
+    });
+
+    arrows.forEach((a, i) => {
+      a.classList.toggle("active", i < stageIndex);
+    });
+  }
+
+  function completePipeline() {
+    document.querySelectorAll(".pipeline-stage").forEach(s => {
+      s.classList.remove("active");
+      s.classList.add("done");
+    });
+    document.querySelectorAll(".pipeline-arrow").forEach(a => {
+      a.classList.add("active");
+    });
+  }
+  function showError(msg) {
+    $errorBanner.textContent = "ERROR: " + msg;
+    $errorBanner.classList.add("visible");
+  }
+  function hideError() {
+    $errorBanner.classList.remove("visible");
+  }
+  (async function boot() {
+    const networkLabel = CONFIG.LABEL || "network";
+    addInfoEntry(`Dashboard initialized, connecting to ${networkLabel}...`);
+
+    try {
+      await pollPortfolio();
+      addInfoEntry(`Portfolio loaded: ${portfolioData.length} loans`);
+      if (portfolioData.length > 0) {
+        selectLoan(portfolioData[0].id);
+        addInfoEntry(`Auto-selected loan: ${portfolioData[0].name}`);
+      }
+
+      await pollEvents();
+      function schedulePoll() {
+        clearTimeout(window.__pollTimer);
+        window.__pollTimer = setTimeout(async () => {
+          await pollPortfolio();
+          await pollEvents();
+          schedulePoll();
+        }, CONFIG.POLL_MS);
+      }
+      window.__schedulePoll = schedulePoll;
+      schedulePoll();
+
+    } catch (e) {
+      showError("Failed to connect: " + e.message);
+      addInfoEntry("Connection failed - is the RPC endpoint running?");
+    }
+  })();
+  </script>
+</body>
+</html>
