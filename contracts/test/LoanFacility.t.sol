@@ -181,4 +181,59 @@ contract LoanFacilityTest is Test {
         assertEq(terms.lastLeverage, 50000, "lastLeverage should match report");
         assertEq(terms.lastDscr, 15000, "lastDscr should match report");
     }
+
+    function test_GetLoanIds() public {
+        bytes32[] memory ids = facility.getLoanIds();
+        assertEq(ids.length, 1, "Should have 1 loan after setUp");
+        assertEq(ids[0], LOAN_ID, "First loan ID should match");
+    }
+
+    function test_GetAllLoans() public {
+        facility.registerLoan(LOAN_ID_2, 50000, 15000);
+
+        (bytes32[] memory ids, LoanFacility.LoanTerms[] memory terms) = facility.getAllLoans();
+        assertEq(ids.length, 2, "Should have 2 loans");
+        assertEq(terms.length, 2, "Terms array should match");
+        assertEq(terms[0].maxLeverageScaled, 60000);
+        assertEq(terms[1].maxLeverageScaled, 50000);
+    }
+
+    function test_DuplicateLoanRegistrationReverts() public {
+        vm.expectRevert("LoanFacility: loan already registered");
+        facility.registerLoan(LOAN_ID, 60000, 12500);
+    }
+
+    function test_EmergencyPauseBlocksReports() public {
+        facility.emergencyPause();
+
+        bytes memory report = abi.encode(LOAN_ID, uint256(50000), uint256(15000));
+        vm.prank(forwarder);
+        vm.expectRevert();
+        facility.onReport("", report);
+    }
+
+    function test_EmergencyUnpauseResumesReports() public {
+        facility.emergencyPause();
+        facility.emergencyUnpause();
+
+        _callReport(LOAN_ID, 50000, 15000);
+        LoanFacility.LoanTerms memory terms = facility.getLoanHealth(LOAN_ID);
+        assertFalse(terms.isFrozen, "Should work after unpause");
+    }
+
+    function test_ConstructorZeroForwarderReverts() public {
+        vm.expectRevert("LoanFacility: forwarder cannot be zero address");
+        new LoanFacility(address(0), admin);
+    }
+
+    function test_ConstructorZeroAdminReverts() public {
+        vm.expectRevert("LoanFacility: admin cannot be zero address");
+        new LoanFacility(forwarder, address(0));
+    }
+
+    function test_NonAdminCannotRegisterLoan() public {
+        vm.prank(address(0xBEEF));
+        vm.expectRevert();
+        facility.registerLoan(keccak256("NEW"), 50000, 15000);
+    }
 }
