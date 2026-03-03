@@ -137,4 +137,77 @@ const onQuarterlyCron = (runtime: Runtime<Config>, _payload: CronPayload): strin
   const evmClient = new EVMClient(chainSelector)
 
   const dscr = httpClient.sendRequest(
-    runtime,
+    runtime,
+    (sr: HTTPSendRequester) => extractMetric(
+      sr, config.mockApiUrl, config.geminiApiUrl, geminiApiKey, "dscr"
+    ),
+    consensusMedianAggregation<number>()
+  )().result()
+
+  runtime.log("DSCR consensus: " + dscr)
+
+  const leverage = httpClient.sendRequest(
+    runtime,
+    (sr: HTTPSendRequester) => extractMetric(
+      sr, config.mockApiUrl, config.geminiApiUrl, geminiApiKey, "leverage"
+    ),
+    consensusMedianAggregation<number>()
+  )().result()
+
+  runtime.log("Leverage consensus: " + leverage)
+
+  const SCALE = 10000
+  const dscrScaled = BigInt(Math.round(dscr * SCALE))
+  const leverageScaled = BigInt(Math.round(leverage * SCALE))
+
+  runtime.log("Scaled values - DSCR: " + dscrScaled + ", Leverage: " + leverageScaled)
+  runtime.log("Report ready for on-chain covenant evaluation")
+
+  const encodedReport = encodeAbiParameters(
+    parseAbiParameters("bytes32 loanId, uint256 currentLeverage, uint256 currentDscr"),
+    [config.loanId as `0x${string}`, leverageScaled, dscrScaled]
+  )
+
+  let report: any
+  try {
+    report = runtime.report(prepareReportRequest(encodedReport)).result()
+  } catch (e) {
+    runtime.log("Report signing failed: " + String(e))
+    throw e
+  }
+
+  let tx: any
+  try {
+    tx = evmClient.writeReport(runtime, {
+      receiver: hexToBase64(config.contractAddress as `0x${string}`),
+      report: report,
+      gasConfig: { gasLimit: config.gasLimit },
+    }).result()
+  } catch (e) {
+    runtime.log("On-chain write failed: " + String(e))
+    throw e
+  }
+
+  const txHashHex = tx.txHash
+    ? bytesToHex(tx.txHash)
+    : "0x0000000000000000000000000000000000000000000000000000000000000000"
+
+  runtime.log("Transaction hash: " + txHashHex)
+  runtime.log("View on Etherscan: https://sepolia.etherscan.io/tx/" + txHashHex)
+
+  return JSON.stringify({
+    loanId: config.loanId,
+    dscr,
+    leverage,
+    dscrScaled: dscrScaled.toString(),
+    leverageScaled: leverageScaled.toString(),
+    txHash: txHashHex,
+  })
+}
+
+export const initWorkflow = () => {
+  const cron = new CronCapability()
+  return [
+    handler(cron.trigger({ schedule: "0 0 1 1,4,7,10 *" }), onQuarterlyCron),
+  ]
+}
