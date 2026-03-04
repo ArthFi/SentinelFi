@@ -1,6 +1,10 @@
 .env
+project.yaml
 node_modules/
 contracts/out/
 contracts/cache/
 contracts/broadcast/
+cre-workflow/node_modules/
+cre-workflow/dist/
 *.DS_Store
+.vercel/
