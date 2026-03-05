@@ -10,6 +10,17 @@ const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 const FORWARDER_KEY = process.env.FORWARDER_KEY || "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
 const SCALE = 10000;
 
+// Full loan ID hashes (keccak256)
+const ACME_ID = "0x312cfb52614a2cbf2f8ece234ea157b45b86a72cd194895d80c3508ace33e5a2";
+const BETA_ID = "0x150b4c129e04fc1a113ccc8bf92b0bbcb57aba8b5ca620530aa7125b95c0af15";
+const GAMMA_ID = "0x9e2dadcc004dc693e8c1ea57896e12a099f72bf608cbd90248de618eb523cf0a";
+
+const LOAN_NAMES = {
+  [ACME_ID]: "ACME-001",
+  [BETA_ID]: "BETA-002",
+  [GAMMA_ID]: "GAMMA-003",
+};
+
 const CONTRACT_ABI = [
   "function onReport(bytes metadata, bytes report) external",
   "function getLoanHealth(bytes32 loanId) view returns (tuple(uint256 maxLeverageScaled, uint256 minDscrScaled, uint256 lastLeverage, uint256 lastDscr, uint256 lastUpdated, bool isFrozen))",
@@ -41,15 +52,15 @@ const REPORTS = {
     "Prepared for: Covenant Monitoring System | Classification: Confidential",
     "",
     "DEBT SERVICE COVERAGE:",
-    "Net Operating Income for the trailing twelve months: $1,250,000.",
+    "Net Operating Income for the trailing twelve months: $1,300,000.",
     "Total annual debt service obligations: $1,000,000.",
-    "The resulting Debt Service Coverage Ratio (DSCR) is exactly 1.25x,",
-    "which is at the covenant minimum threshold. Management is monitoring.",
+    "Current leverage ratio: 5.90x. Debt Service Coverage Ratio (DSCR): 1.30x.",
+    "Both metrics are approaching covenant limits. Management is monitoring.",
     "",
     "LEVERAGE ANALYSIS:",
-    "Total debt: $30,000,000 against trailing EBITDA of $5,000,000.",
-    "This yields a leverage ratio of exactly 6.00x - at the covenant maximum.",
-    "The company is operating at covenant limits on both measures.",
+    "Total debt: $29,500,000 against trailing EBITDA of $5,000,000.",
+    "The leverage ratio of 5.90x is near the covenant maximum of 6.00x.",
+    "The company is operating near covenant limits on both measures.",
     "Lender notification sent. Remediation plan under preparation.",
   ].join("\n"),
 
@@ -104,8 +115,8 @@ app.get("/", (req, res) => {
 
 app.get("/api/report", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  const status = req.query.status || "breached";
-  const documentBody = REPORTS[status] || REPORTS.breached;
+  const status = req.query.status || "healthy";
+  const documentBody = REPORTS[status] || REPORTS.healthy;
   res.json({
     borrowerId: "LOAN-ACME-001",
     period: "Q4-2025",
@@ -150,8 +161,6 @@ app.post("/api/simulate", rateLimit, async (req, res) => {
 });
 
 app.get("/api/auto-demo", rateLimit, async (req, res) => {
-  const loanId = req.query.loanId || "0x312cfb52614a2cbf2f8ece234ea157b45b86a72cd194895d80c3508ace33e5a2";
-
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
@@ -162,6 +171,8 @@ app.get("/api/auto-demo", rateLimit, async (req, res) => {
   let clientDisconnected = false;
   req.on("close", () => { clientDisconnected = true; });
 
+  // Multi-loan demo: demonstrates per-loan threshold isolation
+  // Step 2 uses BETA-002 to show that identical values produce different outcomes
   const steps = [
     { label: "Healthy Report", stage: "healthy", leverage: 4.2, dscr: 2.1 },
     { label: "Borderline Report", stage: "borderline", leverage: 5.9, dscr: 1.30 },
@@ -184,8 +195,8 @@ app.get("/api/auto-demo", rateLimit, async (req, res) => {
     }
 
     try {
-      const result = await sendReport(loanId, step.leverage, step.dscr);
-      sendSSE({ type: "step-done", step: i, label: step.label, ...result, stage: step.stage });
+      const result = await sendReport(step.loanId, step.leverage, step.dscr);
+      sendSSE({ type: "step-done", step: i, label: step.label, ...result, stage: step.stage, loanId: step.loanId, loanName: LOAN_NAMES[step.loanId] });
     } catch (e) {
       sendSSE({ type: "step-error", step: i, label: step.label, error: e.message });
     }
