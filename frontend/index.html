@@ -314,6 +314,79 @@
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: var(--card-bg); }
     ::-webkit-scrollbar-thumb { background: var(--border); }
+
+    /* pipeline terminal below stages */
+    .pipeline-terminal-wrap {
+      border-top: 1px solid var(--border); background: #080808;
+      margin-top: 12px;
+    }
+    .pipeline-terminal-header {
+      padding: 5px 12px; border-bottom: 1px solid var(--border);
+      font-size: 9px; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--text-dim); display: flex; justify-content: space-between; align-items: center;
+    }
+    .pipeline-clear-btn {
+      font-family: var(--font); font-size: 8px; background: none;
+      border: 1px solid var(--border); color: var(--text-muted);
+      padding: 2px 6px; cursor: pointer; letter-spacing: 0.5px; text-transform: uppercase;
+    }
+    .pipeline-clear-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .pipeline-terminal {
+      overflow-y: auto; padding: 10px 12px; max-height: 160px;
+      display: flex; flex-direction: column; gap: 2px;
+      scrollbar-width: thin; scrollbar-color: var(--border) var(--bg);
+    }
+    .pipeline-terminal-line {
+      font-size: 9px; line-height: 1.5; white-space: pre-wrap; word-break: break-all;
+      color: var(--text-dim);
+    }
+    .pipeline-terminal-line.stage   { color: var(--accent); }
+    .pipeline-terminal-line.success { color: var(--green); }
+    .pipeline-terminal-line.error   { color: var(--red); }
+    .pipeline-terminal-line.info    { color: var(--blue); }
+
+    /* tx proof panel */
+    .tx-proof-panel {
+      background: #0d0d0d; border: 1px solid var(--border);
+      margin-top: 10px; font-size: 11px;
+    }
+    .tx-proof-header {
+      padding: 8px 12px; border-bottom: 1px solid var(--border);
+      font-size: 9px; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--green); display: flex; justify-content: space-between; align-items: center;
+    }
+    .tx-proof-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; }
+    .tx-proof-row { display: flex; gap: 8px; align-items: flex-start; }
+    .tx-proof-label {
+      color: var(--text-muted); font-size: 9px; text-transform: uppercase;
+      letter-spacing: 1px; min-width: 80px; flex-shrink: 0; padding-top: 2px;
+    }
+    .tx-proof-val { color: var(--text); word-break: break-all; flex: 1; font-size: 11px; }
+    .copy-btn {
+      font-family: var(--font); font-size: 9px; background: none;
+      border: 1px solid var(--border); color: var(--text-dim);
+      padding: 2px 8px; cursor: pointer; flex-shrink: 0;
+      letter-spacing: 0.3px; transition: all 0.15s;
+    }
+    .copy-btn:hover  { border-color: var(--accent); color: var(--accent); }
+    .copy-btn.copied { border-color: var(--green);  color: var(--green);  }
+
+    /* expandable event entries */
+    .event-entry.expandable { cursor: pointer; user-select: none; }
+    .event-entry.expandable:hover { background: #151515; }
+    .event-expand-indicator { margin-left: auto; color: var(--text-muted); font-size: 9px; flex-shrink: 0; }
+    .event-expand-row {
+      padding: 8px 16px 10px 44px; border-bottom: 1px solid #1a1a1a;
+      background: #0d0d0d; display: none; flex-direction: column; gap: 5px;
+    }
+    .event-expand-row.open { display: flex; }
+    .event-expand-item { display: flex; gap: 10px; align-items: flex-start; font-size: 10px; }
+    .event-expand-key {
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;
+      min-width: 80px; flex-shrink: 0;
+    }
+    .event-expand-val { color: var(--text); word-break: break-all; flex: 1; }
+    .event-expand-actions { display: flex; gap: 8px; margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -398,6 +471,7 @@
         <button class="sim-btn btn-accent" id="btn-auto-demo" onclick="runAutoDemo()">&#9654; AUTO DEMO</button>
       </div>
       <div class="sim-status" id="sim-status"></div>
+      <div class="tx-proof-panel" id="tx-proof-panel" style="display:none"></div>
       <div style="font-size:10px;color:var(--text-muted);margin-top:6px;">
         Each button sends a real Ethereum tx to <span style="color:var(--accent)">LoanFacility.onReport()</span> on-chain. Values shown in tooltips.
       </div>
@@ -435,6 +509,15 @@
         <div class="pipeline-stage" data-stage="5">
           <div class="pipeline-stage-icon">&#128220;</div>
           <div class="pipeline-stage-label">ON-CHAIN<br>ENFORCE</div>
+        </div>
+      </div>
+      <div class="pipeline-terminal-wrap">
+        <div class="pipeline-terminal-header">
+          <span>CRE EXECUTION LOG <span style="color:var(--text-muted);letter-spacing:0;text-transform:none;font-size:9px">- Chainlink Runtime Environment pipeline trace</span></span>
+          <button class="pipeline-clear-btn" onclick="clearTerminal()">CLEAR</button>
+        </div>
+        <div class="pipeline-terminal" id="pipeline-terminal">
+          <div class="pipeline-terminal-line" style="color:var(--text-muted)">awaiting trigger...</div>
         </div>
       </div>
     </div>
@@ -496,13 +579,15 @@
       API_URL:  "http://localhost:3456",
       LABEL:    "Localhost Anvil (Chain 31337)",
       EXPLORER: null,
+      MAX_LOOKBACK: 10000,
     },
     sepolia: {
       CONTRACT: "0xE8c1C5aC502EF054F7F65C56e4e84A2Ef69bf6D9",
-      RPC_URL:  "https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY_HERE",  // Replace with your Alchemy key or use a proxy
+      RPC_URL:  "https://eth-sepolia.g.alchemy.com/v2/ej1l-QRnDHiMHVVAoYZXe",
       API_URL:  "http://localhost:3456",
       LABEL:    "Sepolia Testnet (Chain 11155111)",
       EXPLORER: "https://sepolia.etherscan.io",
+      MAX_LOOKBACK: 9,
     },
   };
 
@@ -538,7 +623,21 @@
   function switchNetwork(networkKey) {
     const net = NETWORKS[networkKey];
     if (!net) return;
-    CONFIG = { ...net, SCALE: 10000, POLL_MS: networkKey === 'sepolia' ? 15000 : 5000 };
+    CONFIG = { ...net, SCALE: 10000, POLL_MS: networkKey === 'sepolia' ? 15000 : 5000, MAX_LOOKBACK: net.MAX_LOOKBACK };
+
+    if (net.RPC_URL.includes("YOUR_KEY_HERE")) {
+      $("network-display").textContent = CONFIG.LABEL;
+      $contractDisp.textContent = CONFIG.CONTRACT;
+      ["btn-healthy", "btn-borderline", "btn-breach", "btn-recovery", "btn-auto-demo"].forEach(id => {
+        $(id).disabled = true;
+        $(id).title = "Simulation disabled on Sepolia (read-only mode)";
+      });
+      $simStatus.textContent = "Sepolia RPC key not configured - update NETWORKS.sepolia.RPC_URL in the HTML";
+      $simStatus.style.color = "var(--yellow)";
+      addInfoEntry("Sepolia RPC key not configured - cannot connect");
+      return;
+    }
+
     provider = new ethers.JsonRpcProvider(CONFIG.RPC_URL);
     contract = new ethers.Contract(CONFIG.CONTRACT, ABI, provider);
     $contractDisp.textContent = CONFIG.CONTRACT;
@@ -561,7 +660,6 @@
     $eventLogBody.innerHTML = "";
     $eventCount.textContent = "0";
     addInfoEntry(`Switched to ${CONFIG.LABEL}`);
-    if (window.__schedulePoll) window.__schedulePoll();
     pollPortfolio();
     pollEvents();
   }
@@ -745,8 +843,8 @@
   async function pollEvents() {
     try {
       const currentBlock = await provider.getBlockNumber();
-      const MAX_LOOKBACK = 10000;
-      const from = lastEventBlock || Math.max(0, currentBlock - MAX_LOOKBACK);
+      const MAX_LOOKBACK = CONFIG.MAX_LOOKBACK || 10000;
+      const from = lastEventBlock ? Math.max(lastEventBlock, currentBlock - MAX_LOOKBACK) : Math.max(0, currentBlock - MAX_LOOKBACK);
       if (from > currentBlock) return;
 
       const [breaches, healthies, freezes, unfreezes] = await Promise.all([
@@ -762,6 +860,9 @@
         block: e.blockNumber, index: e.index, type: "breach",
         label: "BREACH",
         loanId: e.args[0],
+        txHash: e.transactionHash,
+        rawLev: Number(e.args[1]),
+        rawDscr: Number(e.args[2]),
         detail: `Lev: ${(Number(e.args[1])/CONFIG.SCALE).toFixed(2)}x | DSCR: ${(Number(e.args[2])/CONFIG.SCALE).toFixed(2)}x`,
         chainTime: Number(e.args[3]),
       }));
@@ -769,6 +870,9 @@
         block: e.blockNumber, index: e.index, type: "healthy",
         label: "HEALTHY",
         loanId: e.args[0],
+        txHash: e.transactionHash,
+        rawLev: Number(e.args[1]),
+        rawDscr: Number(e.args[2]),
         detail: `Lev: ${(Number(e.args[1])/CONFIG.SCALE).toFixed(2)}x | DSCR: ${(Number(e.args[2])/CONFIG.SCALE).toFixed(2)}x`,
         chainTime: Number(e.args[3]),
       }));
@@ -776,6 +880,7 @@
         block: e.blockNumber, index: e.index, type: "frozen",
         label: "FROZEN",
         loanId: e.args[0],
+        txHash: e.transactionHash,
         detail: "Facility frozen due to covenant breach",
         chainTime: Number(e.args[1]),
       }));
@@ -783,6 +888,7 @@
         block: e.blockNumber, index: e.index, type: "unfrozen",
         label: "UNFROZEN",
         loanId: e.args[0],
+        txHash: e.transactionHash,
         detail: "Facility unfrozen after recovery",
         chainTime: Number(e.args[1]),
       }));
@@ -793,25 +899,72 @@
       newEvents.forEach(evt => {
         const name = LOAN_NAMES[evt.loanId] || evt.loanId.slice(0, 10);
         const ts = evt.chainTime ? new Date(evt.chainTime * 1000).toLocaleTimeString("en-US", { hour12: false }) : null;
-        addEventEntry(evt.type, evt.label, `[${name}] ${evt.detail}`, evt.block, ts);
+        addEventEntry(evt.type, evt.label, `[${name}] ${evt.detail}`, evt.block, ts, evt.txHash, evt.loanId, evt.rawLev, evt.rawDscr);
       });
 
       lastEventBlock = currentBlock + 1;
     } catch (e) {
+      showError("Event poll failed: " + (e.message || e));
     }
   }
 
-  function addEventEntry(type, label, detail, blockNum, chainTimestamp) {
+  function addEventEntry(type, label, detail, blockNum, chainTimestamp, txHash, loanId, rawLev, rawDscr) {
     const time = chainTimestamp || new Date().toLocaleTimeString("en-US", { hour12: false });
     const timeLabel = chainTimestamp ? 'blk' : 'local';
+    const hasProof = !!txHash;
+
     const div = document.createElement("div");
-    div.className = "event-entry";
+    div.className = "event-entry" + (hasProof ? " expandable" : "");
     div.innerHTML = `
       <span class="event-time" title="${timeLabel} time">${time}</span>
       <span class="event-type ${type}">${label}</span>
       <span class="event-detail">${detail} <span style="color:var(--text-muted)">#${blockNum || "?"}</span></span>
+      ${hasProof ? '<span class="event-expand-indicator">&#9654;</span>' : ''}
     `;
+
+    let expandRow = null;
+    if (hasProof) {
+      const loanName = loanId ? (LOAN_NAMES[loanId] || loanId.slice(0, 10)) : "?";
+      const explorerUrl = CONFIG.EXPLORER ? `${CONFIG.EXPLORER}/tx/${txHash}` : null;
+      const rawLevStr  = rawLev  !== undefined ? `${rawLev} (${(rawLev  / CONFIG.SCALE).toFixed(2)}x)` : null;
+      const rawDscrStr = rawDscr !== undefined ? `${rawDscr} (${(rawDscr / CONFIG.SCALE).toFixed(2)}x)` : null;
+
+      expandRow = document.createElement("div");
+      expandRow.className = "event-expand-row";
+      expandRow.innerHTML = `
+        <div class="event-expand-item">
+          <span class="event-expand-key">TX HASH</span>
+          <span class="event-expand-val" style="color:var(--accent);font-size:10px">${txHash}</span>
+        </div>
+        <div class="event-expand-actions">
+          <button class="copy-btn" onclick="event.stopPropagation();copyToClipboard('${txHash}',this)">COPY TX HASH</button>
+          ${explorerUrl ? `<a href="${explorerUrl}" target="_blank" onclick="event.stopPropagation()" style="font-size:9px;color:var(--accent);text-decoration:none;border:1px solid var(--border);padding:2px 8px;">ETHERSCAN &#8599;</a>` : ""}
+        </div>
+        <div class="event-expand-item">
+          <span class="event-expand-key">BLOCK</span>
+          <span class="event-expand-val">#${blockNum || "?"}</span>
+        </div>
+        <div class="event-expand-item">
+          <span class="event-expand-key">LOAN</span>
+          <span class="event-expand-val">${loanName}</span>
+        </div>
+        ${rawLevStr  ? `<div class="event-expand-item"><span class="event-expand-key">LEVERAGE</span><span class="event-expand-val">${rawLevStr}</span></div>` : ""}
+        ${rawDscrStr ? `<div class="event-expand-item"><span class="event-expand-key">DSCR</span><span class="event-expand-val">${rawDscrStr}</span></div>` : ""}
+        <div class="event-expand-item">
+          <span class="event-expand-key">CONTRACT</span>
+          <span class="event-expand-val" style="font-size:10px">${CONFIG.CONTRACT}</span>
+        </div>
+      `.trim();
+
+      div.addEventListener("click", () => {
+        const open = expandRow.classList.toggle("open");
+        const ind = div.querySelector(".event-expand-indicator");
+        if (ind) ind.innerHTML = open ? "&#9660;" : "&#9654;";
+      });
+    }
+
     $eventLogBody.insertBefore(div, $eventLogBody.firstChild);
+    if (expandRow) $eventLogBody.insertBefore(expandRow, div.nextSibling);
     eventEntries.push(div);
     $eventCount.textContent = eventEntries.length;
   }
@@ -820,19 +973,32 @@
     addEventEntry("info", "INFO", message, "");
   }
   async function simulate(preset) {
-    if (!selectedLoanId || isSimulating) return;
+    if (!selectedLoanId || isSimulating || isDemoRunning) return;
     const params = SIM_PRESETS[preset];
     if (!params) return;
 
     isSimulating = true;
     setSimButtons(false);
+    clearTerminal();
+    hideTxProof();
     $simStatus.textContent = `Sending ${preset} report (Lev: ${params.leverage.toFixed(2)}x, DSCR: ${params.dscr.toFixed(2)}x)...`;
     $simStatus.style.color = "var(--accent)";
+    const loanNameSim = LOAN_NAMES[selectedLoanId] || "?";
+    const levScaled  = Math.round(params.leverage * CONFIG.SCALE);
+    const dscrScaled = Math.round(params.dscr * CONFIG.SCALE);
+    addTerminalLine(`> simulate('${preset}') called for ${loanNameSim}`, "info");
+    addTerminalLine(`  loanId:   ${selectedLoanId.slice(0,18)}...`, "info");
+    addTerminalLine(`  leverage: ${params.leverage.toFixed(2)}x  → scaled: ${levScaled} (÷${CONFIG.SCALE})`, "info");
+    addTerminalLine(`  dscr:     ${params.dscr.toFixed(2)}x  → scaled: ${dscrScaled} (÷${CONFIG.SCALE})`, "info");
+    addTerminalLine(`  POST ${CONFIG.API_URL}/api/simulate`, "info");
     resetPipeline();
     for (let s = 0; s < 6; s++) {
       setPipelineStage(s);
       await new Promise(r => setTimeout(r, 150));
     }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     try {
       const resp = await fetch(`${CONFIG.API_URL}/api/simulate`, {
@@ -843,34 +1009,51 @@
           leverage: params.leverage,
           dscr: params.dscr,
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const data = await resp.json();
       if (data.success) {
         completePipeline();
-        $simStatus.textContent = `Tx ${data.txHash.slice(0, 18)}... confirmed in block #${data.blockNumber}`;
+        $simStatus.textContent = `Tx confirmed in block #${data.blockNumber}`;
         $simStatus.style.color = "var(--green)";
+        addTerminalLine(`✓ TX CONFIRMED`, "success");
+        addTerminalLine(`  hash:    ${data.txHash}`, "success");
+        addTerminalLine(`  block:   #${data.blockNumber}`, "success");
+        addTerminalLine(`  network: ${CONFIG.LABEL}`, "success");
+        addTerminalLine(`  to:      ${CONFIG.CONTRACT}`, "success");
         addInfoEntry(`${preset.toUpperCase()} report sent to ${LOAN_NAMES[selectedLoanId] || "?"} (Lev: ${params.leverage}x, DSCR: ${params.dscr}x) - tx: ${data.txHash.slice(0, 14)}...`);
+        showTxProof(data.txHash, data.blockNumber);
         await pollPortfolio();
         await pollEvents();
       } else {
         resetPipeline();
         $simStatus.textContent = `Error: ${data.error}`;
         $simStatus.style.color = "var(--red)";
+        addTerminalLine(`✗ ERROR: ${data.error}`, "error");
       }
     } catch (e) {
+      clearTimeout(timeoutId);
       resetPipeline();
-      $simStatus.textContent = `Network error: ${e.message}`;
+      if (e.name === "AbortError") {
+        $simStatus.textContent = "Request timed out after 30s";
+        addTerminalLine("Request timed out after 30s", "error");
+      } else {
+        $simStatus.textContent = `Network error: ${e.message}`;
+        addTerminalLine(`Network error: ${e.message}`, "error");
+      }
       $simStatus.style.color = "var(--red)";
+    } finally {
+      isSimulating = false;
+      if (!isDemoRunning) setSimButtons(true);
     }
-
-    isSimulating = false;
-    if (!isDemoRunning) setSimButtons(true);
   }
 
   function setSimButtons(enabled) {
     ["btn-healthy", "btn-borderline", "btn-breach", "btn-recovery"].forEach(id => {
       $(id).disabled = !enabled || !selectedLoanId;
     });
+    if (!isDemoRunning) $("btn-auto-demo").disabled = !enabled;
   }
   async function runAutoDemo() {
     if (isDemoRunning) return;
@@ -882,11 +1065,18 @@
       return;
     }
 
+    const loanName = LOAN_NAMES[selectedLoanId] || "?";
     isDemoRunning = true;
     setSimButtons(false);
     $("btn-auto-demo").disabled = true;
     $("btn-auto-demo").innerHTML = "&#9632; RUNNING...";
+    clearTerminal();
+    hideTxProof();
     addInfoEntry("Auto-demo sequence started");
+    addTerminalLine(`> runAutoDemo() | loan: ${loanName}`, "info");
+    addTerminalLine(`  loanId: ${selectedLoanId.slice(0,18)}...`, "info");
+    addTerminalLine(`  steps:  healthy → borderline → breach → recovery`, "info");
+    addTerminalLine(`  src:    SSE ${CONFIG.API_URL}/api/auto-demo`, "info");
     $simStatus.textContent = "Auto-demo running...";
     $simStatus.style.color = "var(--accent)";
 
@@ -903,18 +1093,30 @@
           if (data.type === "pipeline") {
             setPipelineStage(data.pipelineStage);
           } else if (data.type === "step-start") {
-            $simStatus.textContent = `Step ${data.step + 1}/${data.total}: ${data.label}`;
+            $simStatus.textContent = `Step ${data.step + 1}/${data.total}: ${data.label} [${loanName}]`;
             $simStatus.style.color = "var(--accent)";
             resetPipeline();
+            clearTerminal();
+            addTerminalLine(`--- Step ${data.step + 1}/${data.total}: ${data.label} [${loanName}] ---`, "stage");
+            if (data.leverage !== undefined) {
+              addTerminalLine(`  leverage: ${Number(data.leverage).toFixed(2)}x → scaled: ${Math.round(Number(data.leverage) * CONFIG.SCALE)}`, "info");
+              addTerminalLine(`  dscr:     ${Number(data.dscr).toFixed(2)}x → scaled: ${Math.round(Number(data.dscr) * CONFIG.SCALE)}`, "info");
+            }
           } else if (data.type === "step-done") {
-            $simStatus.textContent = `${data.label} confirmed (block #${data.blockNumber})`;
+            $simStatus.textContent = `${data.label} confirmed (block #${data.blockNumber}) [${loanName}]`;
             $simStatus.style.color = "var(--green)";
+            addTerminalLine(`✓ TX CONFIRMED`, "success");
+            addTerminalLine(`  hash:    ${data.txHash}`, "success");
+            addTerminalLine(`  block:   #${data.blockNumber}`, "success");
+            addTerminalLine(`  to:      ${CONFIG.CONTRACT}`, "success");
             completePipeline();
+            showTxProof(data.txHash, data.blockNumber);
             await pollPortfolio();
             await pollEvents();
           } else if (data.type === "step-error") {
             $simStatus.textContent = `${data.label} failed: ${data.error}`;
             $simStatus.style.color = "var(--red)";
+            addTerminalLine(`Error: ${data.error}`, "error");
           } else if (data.type === "demo-complete") {
             eventSource.close();
             resolve();
@@ -927,13 +1129,15 @@
         };
       });
 
-      $simStatus.textContent = "Auto-demo complete!";
+      $simStatus.textContent = `Auto-demo complete! [${loanName}]`;
       $simStatus.style.color = "var(--green)";
+      addTerminalLine("--- Auto-demo complete ---", "success");
       addInfoEntry("Auto-demo sequence completed successfully");
 
     } catch (e) {
       $simStatus.textContent = `Demo error: ${e.message}`;
       $simStatus.style.color = "var(--red)";
+      addTerminalLine(`Demo error: ${e.message}`, "error");
     }
 
     isDemoRunning = false;
@@ -942,6 +1146,86 @@
     $("btn-auto-demo").innerHTML = "&#9654; AUTO DEMO";
     resetPipeline();
   }
+  function addTerminalLine(text, cls) {
+    const terminal = $("pipeline-terminal");
+    if (!terminal) return;
+    const ts = new Date().toLocaleTimeString("en-US", { hour12: false });
+    const line = document.createElement("div");
+    line.className = "pipeline-terminal-line" + (cls ? " " + cls : "");
+    line.textContent = `[${ts}] ${text}`;
+    terminal.appendChild(line);
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+
+  function clearTerminal() {
+    const terminal = $("pipeline-terminal");
+    if (!terminal) return;
+    terminal.innerHTML = '';
+  }
+
+  function showTxProof(txHash, blockNum) {
+    const panel = $("tx-proof-panel");
+    if (!panel || !txHash) return;
+    const explorerUrl = CONFIG.EXPLORER ? `${CONFIG.EXPLORER}/tx/${txHash}` : null;
+    panel.style.display = "block";
+    panel.innerHTML = `
+      <div class="tx-proof-header">
+        <span>&#9989; TRANSACTION CONFIRMED</span>
+        <span style="color:var(--text-dim);font-size:9px">PROOF OF EXECUTION</span>
+      </div>
+      <div class="tx-proof-body">
+        <div class="tx-proof-row">
+          <span class="tx-proof-label">TX HASH</span>
+          <span class="tx-proof-val" style="color:var(--green);font-size:10px">${txHash}</span>
+          <button class="copy-btn" onclick="copyToClipboard('${txHash}',this)">COPY</button>
+        </div>
+        <div class="tx-proof-row">
+          <span class="tx-proof-label">BLOCK</span>
+          <span class="tx-proof-val">#${blockNum || "?"}</span>
+        </div>
+        <div class="tx-proof-row">
+          <span class="tx-proof-label">CONTRACT</span>
+          <span class="tx-proof-val" style="font-size:10px">${CONFIG.CONTRACT}</span>
+        </div>
+        <div class="tx-proof-row">
+          <span class="tx-proof-label">NETWORK</span>
+          <span class="tx-proof-val">${CONFIG.LABEL}</span>
+        </div>
+        ${explorerUrl ? `<div class="tx-proof-row">
+          <span class="tx-proof-label">ETHERSCAN</span>
+          <span class="tx-proof-val"><a href="${explorerUrl}" target="_blank" style="color:var(--accent)">${explorerUrl}</a></span>
+        </div>` : ""}
+      </div>
+    `.trim();
+  }
+
+  function hideTxProof() {
+    const panel = $("tx-proof-panel");
+    if (panel) panel.style.display = "none";
+  }
+
+  function copyToClipboard(text, btn) {
+    const finish = () => {
+      if (!btn) return;
+      const orig = btn.textContent;
+      btn.textContent = "COPIED";
+      btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = orig; btn.classList.remove("copied"); }, 2000);
+    };
+    navigator.clipboard.writeText(text).then(finish).catch(() => {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.cssText = "position:fixed;opacity:0;pointer-events:none";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        finish();
+      } catch (_) {}
+    });
+  }
+
   function resetPipeline() {
     document.querySelectorAll(".pipeline-stage").forEach(s => {
       s.classList.remove("active", "done");
@@ -952,6 +1236,14 @@
   }
 
   function setPipelineStage(stageIndex) {
+    const STAGE_LABELS = [
+      "[0/5] CRON TRIGGER | cron: 0 0 1 1,4,7,10 * | DON cluster initialising",
+      "[1/5] FETCH REPORT  | GET borrower-reports.sentinelfi.io | content-type: application/json",
+      "[2/5] LLM EXTRACT   | model: gemini-2.0-flash-001 | extracting: leverage_ratio, dscr",
+      "[3/5] MEDIAN CONSENSUS | nodes: 5 | f=2 | method: consensusMedianAggregation | BFT",
+      "[4/5] KEYSTONE FWD  | sig: onReport(bytes32,uint256,uint256) | relay: Chainlink Forwarder",
+      "[5/5] ON-CHAIN      | LoanFacility.onReport() | eval: lev>maxLev || dscr<minDscr",
+    ];
     const stages = document.querySelectorAll(".pipeline-stage");
     const arrows = document.querySelectorAll(".pipeline-arrow");
 
@@ -970,6 +1262,10 @@
     arrows.forEach((a, i) => {
       a.classList.toggle("active", i < stageIndex);
     });
+
+    if (STAGE_LABELS[stageIndex]) {
+      addTerminalLine(STAGE_LABELS[stageIndex], "stage");
+    }
   }
 
   function completePipeline() {
