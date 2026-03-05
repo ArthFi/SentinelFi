@@ -174,10 +174,10 @@ app.get("/api/auto-demo", rateLimit, async (req, res) => {
   // Multi-loan demo: demonstrates per-loan threshold isolation
   // Step 2 uses BETA-002 to show that identical values produce different outcomes
   const steps = [
-    { loanId: ACME_ID, leverage: 4.20, dscr: 2.10, label: "Step 1: Portfolio Healthy", stage: "healthy", description: "ACME-001 — all covenants met" },
-    { loanId: BETA_ID, leverage: 5.90, dscr: 1.30, label: "Step 2: Threshold Isolation", stage: "borderline", description: "Same values → ACME passes (max 6.0x), BETA breaches (max 5.0x)" },
-    { loanId: ACME_ID, leverage: 7.20, dscr: 0.95, label: "Step 3: Covenant Breach", stage: "breach", description: "ACME-001 — both metrics violated, loan frozen" },
-    { loanId: ACME_ID, leverage: 4.00, dscr: 2.00, label: "Step 4: Recovery", stage: "recovery", description: "ACME-001 — metrics restored, loan unfrozen" },
+    { label: "Healthy Report", stage: "healthy", leverage: 4.2, dscr: 2.1 },
+    { label: "Borderline Report", stage: "borderline", leverage: 5.9, dscr: 1.30 },
+    { label: "Breach Report", stage: "breach", leverage: 7.2, dscr: 0.95 },
+    { label: "Recovery Report", stage: "recovery", leverage: 4.2, dscr: 2.1 },
   ];
 
   const sendSSE = (data) => {
@@ -187,12 +187,7 @@ app.get("/api/auto-demo", rateLimit, async (req, res) => {
   for (let i = 0; i < steps.length; i++) {
     if (clientDisconnected) break;
     const step = steps[i];
-    sendSSE({
-      type: "step-start", step: i, label: step.label, total: steps.length,
-      stage: step.stage, leverage: step.leverage, dscr: step.dscr,
-      loanId: step.loanId, loanName: LOAN_NAMES[step.loanId] || step.loanId.slice(0, 10),
-      description: step.description,
-    });
+    sendSSE({ type: "step-start", step: i, label: step.label, total: steps.length, stage: step.stage, leverage: step.leverage, dscr: step.dscr });
 
     for (let s = 0; s < 6; s++) {
       sendSSE({ type: "pipeline", step: i, pipelineStage: s });
