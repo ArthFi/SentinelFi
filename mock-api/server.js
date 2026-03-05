@@ -164,7 +164,7 @@ app.get("/api/auto-demo", rateLimit, async (req, res) => {
 
   const steps = [
     { label: "Healthy Report", stage: "healthy", leverage: 4.2, dscr: 2.1 },
-    { label: "Borderline Report", stage: "borderline", leverage: 6.0, dscr: 1.25 },
+    { label: "Borderline Report", stage: "borderline", leverage: 5.9, dscr: 1.30 },
     { label: "Breach Report", stage: "breach", leverage: 7.2, dscr: 0.95 },
     { label: "Recovery Report", stage: "recovery", leverage: 4.2, dscr: 2.1 },
   ];
@@ -176,7 +176,7 @@ app.get("/api/auto-demo", rateLimit, async (req, res) => {
   for (let i = 0; i < steps.length; i++) {
     if (clientDisconnected) break;
     const step = steps[i];
-    sendSSE({ type: "step-start", step: i, label: step.label, total: steps.length, stage: step.stage });
+    sendSSE({ type: "step-start", step: i, label: step.label, total: steps.length, stage: step.stage, leverage: step.leverage, dscr: step.dscr });
 
     for (let s = 0; s < 6; s++) {
       sendSSE({ type: "pipeline", step: i, pipelineStage: s });

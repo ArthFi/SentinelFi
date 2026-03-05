@@ -8,3 +8,4 @@ cre-workflow/node_modules/
 cre-workflow/dist/
 *.DS_Store
 .vercel/
+contracts/lib

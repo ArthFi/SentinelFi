@@ -3,7 +3,7 @@
 
 staging-settings:
   user-workflow:
-    workflow-name: "covenant-monitor-staging"
+    workflow-name: "covenant-monitor"
   workflow-artifacts:
     workflow-path: "./src/workflow.ts"
     config-path: "./config.staging.json"

@@ -10,14 +10,12 @@ contract LoanFacilityTest is Test {
     address public forwarder = address(0x1337);
     address public admin = address(this);
     bytes32 public LOAN_ID = keccak256(abi.encodePacked("LOAN-ACME-001"));
-
     bytes32 public LOAN_ID_2 = keccak256(abi.encodePacked("LOAN-BETA-002"));
 
     function setUp() public {
         facility = new LoanFacility(forwarder, admin);
         facility.registerLoan(LOAN_ID, 60000, 12500);
     }
-
 
     function _callReport(
         bytes32 loanId,
@@ -28,7 +26,6 @@ contract LoanFacilityTest is Test {
         vm.prank(forwarder);
         facility.onReport("", report);
     }
-
 
     function test_HealthyCovenants() public {
 
@@ -97,7 +94,6 @@ contract LoanFacilityTest is Test {
 
         LoanFacility.LoanTerms memory breached = facility.getLoanHealth(LOAN_ID);
         assertTrue(breached.isFrozen, "Loan should be frozen after breach");
-
         vm.expectEmit(true, false, false, true);
         emit LoanFacility.LoanUnfrozen(LOAN_ID, block.timestamp);
 
@@ -117,7 +113,6 @@ contract LoanFacilityTest is Test {
 
     function test_OnlyForwarderCanReport() public {
         bytes memory report = abi.encode(LOAN_ID, uint256(50000), uint256(15000));
-
         vm.prank(address(0xDEAD));
         vm.expectRevert("LoanFacility: caller is not the Keystone Forwarder");
         facility.onReport("", report);
@@ -139,14 +134,10 @@ contract LoanFacilityTest is Test {
 
     function test_MultipleLoans() public {
         facility.registerLoan(LOAN_ID_2, 50000, 15000);
-
         _callReport(LOAN_ID, 70000, 9500);
-
         _callReport(LOAN_ID_2, 40000, 20000);
-
         LoanFacility.LoanTerms memory terms1 = facility.getLoanHealth(LOAN_ID);
         assertTrue(terms1.isFrozen, "Loan 1 should be frozen");
-
         LoanFacility.LoanTerms memory terms2 = facility.getLoanHealth(LOAN_ID_2);
         assertFalse(
             terms2.isFrozen,
@@ -161,7 +152,6 @@ contract LoanFacilityTest is Test {
 
         LoanFacility.LoanTerms memory frozen = facility.getLoanHealth(LOAN_ID);
         assertTrue(frozen.isFrozen, "Loan should be frozen after breach");
-
         vm.expectEmit(true, false, false, true);
         emit LoanFacility.LoanUnfrozen(LOAN_ID, block.timestamp);
         _callReport(LOAN_ID, 50000, 15000);
@@ -172,7 +162,6 @@ contract LoanFacilityTest is Test {
             "Loan should be unfrozen after healthy report"
         );
     }
-
 
     function test_LastLeverageAndDscrStoredOnReport() public {
         _callReport(LOAN_ID, 50000, 15000);
@@ -242,14 +231,12 @@ contract LoanFacilityTest is Test {
         LoanFacility.LoanTerms memory t1 = facility.getLoanHealth(LOAN_ID);
         assertEq(t1.lastLeverage, 42000);
         assertEq(t1.lastDscr, 21000);
-
         _callReport(LOAN_ID, 72000, 9500);
         LoanFacility.LoanTerms memory t2 = facility.getLoanHealth(LOAN_ID);
         assertEq(t2.lastLeverage, 72000);
         assertEq(t2.lastDscr, 9500);
         assertTrue(t2.isFrozen);
     }
-
 
     function test_RegisterLoanZeroLeverageReverts() public {
         bytes32 newLoan = keccak256("ZERO-LEV");
@@ -298,7 +285,6 @@ contract LoanFacilityTest is Test {
         _callReport(LOAN_ID, 70000, 9500);
         LoanFacility.LoanTerms memory t1 = facility.getLoanHealth(LOAN_ID);
         assertTrue(t1.isFrozen);
-
         vm.recordLogs();
         _callReport(LOAN_ID, 75000, 8000);
         Vm.Log[] memory logs = vm.getRecordedLogs();

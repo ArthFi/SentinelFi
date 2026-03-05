@@ -1,0 +1,13 @@
+{
+  "contractAddress": "0xE8c1C5aC502EF054F7F65C56e4e84A2Ef69bf6D9",
+  "loanIds": [
+    "0x312cfb52614a2cbf2f8ece234ea157b45b86a72cd194895d80c3508ace33e5a2",
+    "0x150b4c129e04fc1a113ccc8bf92b0bbcb57aba8b5ca620530aa7125b95c0af15",
+    "0x9e2dadcc004dc693e8c1ea57896e12a099f72bf608cbd90248de618eb523cf0a"
+  ],
+  "mockApiUrl": "https://test-ashen-zeta-23.vercel.app/api/report",
+  "geminiApiUrl": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+  "targetChain": "ethereum-testnet-sepolia",
+  "gasLimit": "500000",
+  "schedule": "0 0 1 1,4,7,10 *"
+}
