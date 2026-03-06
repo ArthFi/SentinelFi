@@ -66,51 +66,30 @@ function toBase64(str: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// extractMetric — runs inside runInNodeMode (each DON node independently)
+// extractCombinedMetrics — runs inside runInNodeMode (each DON node)
 //
-// Fetches the financial report, sends to Gemini API for metric extraction,
-// returns the parsed number. Each DON node runs this and then consensus
-// aggregates the results.
+// Makes a SINGLE HTTP call to the Gemini proxy in "combined" mode.
+// The proxy fetches the financial report server-side and returns both
+// DSCR and leverage in one response, staying within CRE's 5-call limit.
+//
+// Returns an encoded number: Math.round(dscr * SCALE) * 1000000 + Math.round(leverage * SCALE)
+// This allows a single consensus round per loan instead of two.
 // ---------------------------------------------------------------------------
 const SCALE = 10000
+const ENCODE_FACTOR = 1000000
 
-function extractMetric(
+function extractCombinedMetrics(
   nodeRuntime: NodeRuntime<Config>,
-  geminiApiKey: string,
-  metricName: "dscr" | "leverage"
+  geminiApiKey: string
 ): number {
   const httpClient = new HTTPClient()
 
-  // 1. Fetch the financial report
-  const reportRes = httpClient
-    .sendRequest(nodeRuntime, {
-      url: nodeRuntime.config.mockApiUrl,
-      method: "GET",
-    })
-    .result()
+  // Build prompt that tells the proxy to fetch the report itself
+  const promptText = `REPORT_URL: ${nodeRuntime.config.mockApiUrl}
 
-  const reportRaw = new TextDecoder().decode(reportRes.body)
-  let reportJson: Record<string, unknown>
-  try {
-    reportJson = JSON.parse(reportRaw)
-  } catch {
-    throw new Error(`REPORT_PARSE_FAIL: len=${reportRaw.length}`)
-  }
-  const reportText = String(reportJson.documentBody ?? "")
+Extract both the Debt Service Coverage Ratio (DSCR) and the leverage ratio from the financial report at the URL above.
+Return a JSON object: {"dscr": <number>, "leverage": <number>}`
 
-  // 2. Build Gemini prompt
-  const metricDescription =
-    metricName === "dscr"
-      ? "Debt Service Coverage Ratio (DSCR)"
-      : "leverage ratio (Total Debt / EBITDA)"
-
-  const promptText = `You are a financial analyst. Extract the ${metricDescription} from the following financial report.
-Return ONLY a JSON object: {"value": <number>}
-
-FINANCIAL REPORT:
-${reportText}`
-
-  // 3. Build deterministic Gemini payload
   const rawPayload: Record<string, unknown> = {
     contents: [{ parts: [{ text: promptText }], role: "user" }],
     generationConfig: {
@@ -121,7 +100,7 @@ ${reportText}`
   const bodyStr = sortedStringify(rawPayload)
   const base64Body = toBase64(bodyStr)
 
-  // 4. Call Gemini API
+  // Single HTTP call — proxy fetches report + extracts both metrics
   const geminiRes = httpClient
     .sendRequest(nodeRuntime, {
       url: `${nodeRuntime.config.geminiApiUrl}?key=${geminiApiKey}`,
@@ -131,7 +110,7 @@ ${reportText}`
     })
     .result()
 
-  // 5. Parse response
+  // Parse Gemini-format response
   const geminiRaw = new TextDecoder().decode(geminiRes.body)
   let geminiJson: Record<string, unknown>
   try {
@@ -158,27 +137,35 @@ ${reportText}`
     )
   }
 
-  const value =
-    typeof parsed.value === "number"
-      ? parsed.value
-      : parseFloat(String(parsed.value))
+  const dscr =
+    typeof parsed.dscr === "number"
+      ? parsed.dscr
+      : parseFloat(String(parsed.dscr))
+  const leverage =
+    typeof parsed.leverage === "number"
+      ? parsed.leverage
+      : parseFloat(String(parsed.leverage))
 
-  if (isNaN(value)) {
-    throw new Error(`extractMetric(${metricName}): NaN — raw=${parsed.value}`)
+  if (isNaN(dscr) || isNaN(leverage)) {
+    throw new Error(
+      `extractCombinedMetrics: NaN — dscr=${parsed.dscr}, leverage=${parsed.leverage}`
+    )
   }
 
-  return value
+  // Encode both values into a single number for consensus
+  // dscr_scaled occupies upper digits, leverage_scaled occupies lower 6 digits
+  return Math.round(dscr * SCALE) * ENCODE_FACTOR + Math.round(leverage * SCALE)
 }
 
 // ---------------------------------------------------------------------------
 // onQuarterlyCron — main CRE handler (DON-level)
 //
 // For EACH loan in the portfolio:
-//   1. DSCR consensus round
-//   2. Leverage consensus round
+//   1. Single consensus round: proxy fetches report + extracts both metrics
+//   2. Decode combined value into DSCR and leverage
 //   3. ABI-encode, sign report, write on-chain
 //
-// HTTP budget: 2 calls per metric × 2 metrics × 3 loans = 12 calls
+// HTTP budget: 1 call per loan × 3 loans = 3 calls (within 5-call limit)
 // ---------------------------------------------------------------------------
 function onQuarterlyCron(runtime: Runtime<Config>): string {
   const geminiApiKey = runtime
@@ -211,32 +198,22 @@ function onQuarterlyCron(runtime: Runtime<Config>): string {
       `Processing loan ${i + 1}/${runtime.config.loanIds.length}: ${loanId.slice(0, 10)}...`
     )
 
-    // DSCR consensus round
-    const dscrValue = runtime
+    // Single consensus round — proxy fetches report + returns both metrics
+    const combined = runtime
       .runInNodeMode(
         (nodeRuntime: NodeRuntime<Config>): number => {
-          return extractMetric(nodeRuntime, geminiApiKey, "dscr")
+          return extractCombinedMetrics(nodeRuntime, geminiApiKey)
         },
         consensusMedianAggregation<number>()
       )()
       .result()
 
-    // Leverage consensus round
-    const leverageValue = runtime
-      .runInNodeMode(
-        (nodeRuntime: NodeRuntime<Config>): number => {
-          return extractMetric(nodeRuntime, geminiApiKey, "leverage")
-        },
-        consensusMedianAggregation<number>()
-      )()
-      .result()
-
-    // Scale to integer
-    const dscrScaled = BigInt(Math.round(dscrValue * SCALE))
-    const leverageScaled = BigInt(Math.round(leverageValue * SCALE))
+    // Decode combined value
+    const dscrScaled = BigInt(Math.round(combined / ENCODE_FACTOR))
+    const leverageScaled = BigInt(Math.round(combined % ENCODE_FACTOR))
 
     runtime.log(
-      `Loan ${loanId.slice(0, 10)}... DSCR=${dscrScaled} Leverage=${leverageScaled}`
+      `Loan ${loanId.slice(0, 10)}... DSCR=${dscrScaled} Leverage=${leverageScaled} (combined=${combined})`
     )
 
     // ABI encode — (bytes32 loanId, uint256 leverage, uint256 dscr)

@@ -2,7 +2,12 @@
   "version": 2,
   "functions": {
     "api/report.ts": {
-      "runtime": "@vercel/node@3"
+      "memory": 128,
+      "maxDuration": 10
+    },
+    "api/gemini-proxy.ts": {
+      "memory": 128,
+      "maxDuration": 10
     }
   }
 }
