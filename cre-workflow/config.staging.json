@@ -6,7 +6,7 @@
     "0x9e2dadcc004dc693e8c1ea57896e12a099f72bf608cbd90248de618eb523cf0a"
   ],
   "mockApiUrl": "https://test-ashen-zeta-23.vercel.app/api/report",
-  "geminiApiUrl": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+  "geminiApiUrl": "https://test-ashen-zeta-23.vercel.app/api/gemini-proxy",
   "targetChain": "ethereum-testnet-sepolia",
   "gasLimit": "500000",
   "schedule": "0 0 1 1,4,7,10 *"
