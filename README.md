@@ -4,9 +4,6 @@
 
 Quarterly financial reports come in → DON nodes independently extract leverage and DSCR → median consensus across 21+ nodes → auto-freeze or clear on-chain. No human in the loop.
 
-[![Solidity](https://img.shields.io/badge/solidity-0.8.24-363636)](contracts/src/LoanFacility.sol)
-[![Tests](https://img.shields.io/badge/foundry%20tests-29%20passing-brightgreen)](contracts/test/LoanFacility.t.sol)
-
 ---
 
 ## What's the Problem?
