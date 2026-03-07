@@ -31,15 +31,15 @@ const REPORTS: Record<string, string> = {
     "Prepared for: Covenant Monitoring System | Classification: Confidential",
     "",
     "DEBT SERVICE COVERAGE:",
-    "Net Operating Income for the trailing twelve months: $1,250,000.",
+    "Net Operating Income for the trailing twelve months: $1,300,000.",
     "Total annual debt service obligations: $1,000,000.",
-    "The resulting Debt Service Coverage Ratio (DSCR) is exactly 1.25x,",
-    "which is at the covenant minimum threshold. Management is monitoring.",
+    "Current leverage ratio: 5.90x. Debt Service Coverage Ratio (DSCR): 1.30x.",
+    "Both metrics are approaching covenant limits. Management is monitoring.",
     "",
     "LEVERAGE ANALYSIS:",
-    "Total debt: $30,000,000 against trailing EBITDA of $5,000,000.",
-    "This yields a leverage ratio of exactly 6.00x - at the covenant maximum.",
-    "The company is operating at covenant limits on both measures.",
+    "Total debt: $29,500,000 against trailing EBITDA of $5,000,000.",
+    "The leverage ratio of 5.90x is near the covenant maximum of 6.00x.",
+    "The company is operating near covenant limits on both measures.",
     "Lender notification sent. Remediation plan under preparation.",
   ].join("\n"),
 
@@ -64,12 +64,20 @@ const REPORTS: Record<string, string> = {
 }
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
-  // Allow all origins for hackathon demo
+  // CORS headers for CRE DON node access + browser dashboard
   res.setHeader("Access-Control-Allow-Origin", "*")
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS")
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept")
   res.setHeader("Cache-Control", "no-store")
 
-  const status = (req.query.status as string) || "breached"
-  const documentBody = REPORTS[status] || REPORTS.breached
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    res.status(204).end()
+    return
+  }
+
+  const status = (req.query.status as string) || "healthy"
+  const documentBody = REPORTS[status] || REPORTS.healthy
 
   const response: ReportResponse = {
     borrowerId: "LOAN-ACME-001",
