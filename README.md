@@ -6,7 +6,6 @@ Quarterly financial reports come in → DON nodes independently extract leverage
 
 [![Solidity](https://img.shields.io/badge/solidity-0.8.24-363636)](contracts/src/LoanFacility.sol)
 [![Tests](https://img.shields.io/badge/foundry%20tests-29%20passing-brightgreen)](contracts/test/LoanFacility.t.sol)
-[![Deployed](https://img.shields.io/badge/sepolia-deployed-blue)](https://sepolia.etherscan.io/address/0x11Adc878bE53737570810DF5dFFDdF2357B37E90)
 
 ---
 
